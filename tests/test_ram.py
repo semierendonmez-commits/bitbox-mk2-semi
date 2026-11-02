@@ -29,7 +29,9 @@ REGIONS = [                                         # start, size, owner (micro 
     (0x2406CD00, 0x100, "reverb.c RS2 (FX3)  [0x2406d100]"),
     (0x2406CE00, 0x100, "fx3.c state  [0x2406d200] (not built yet)"),
     (0x2406D000, 0x10, "master.c page state  [0x2406d400] (micro only, unused on the MK2)"),
+    (0x2406D040, 0x80, "fx.c delay modulation / loop filter state  (semi)"),
     (0x2406D180, 0x10, "master.c SSL state  [0x2406d580]"),
+    (0x2406D190, 0x10, "master.c SSL state for bus 3 (Compressor: Both)  (semi)"),
     (0x2406E000, 0x1000, "master.c Mix dry copy / recmon.c monitor signal (2 x 512 floats)"),
 ]
 

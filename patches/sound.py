@@ -10,7 +10,9 @@ against the MK2 BL targets / bytes; the page data is MK2-specific (micro: 6 page
 import os
 import struct
 
-from thumb import ROOT, bl, symbols
+from thumb import BASE, ROOT, bl, symbols
+
+STOCK_IMG = open(os.path.join(ROOT, "firmware", "BITBOXMK2.bin"), "rb").read()
 
 sym = symbols(os.path.join(ROOT, "out", "cave.elf"))
 
@@ -88,6 +90,22 @@ CLIP_TABLES = [TABLES["clip_a"], TABLES["clip_b"]]
 POS = [0x6F, 0xB4, 0x2A, 0x76]
 
 
+# FX1 Send / FX2 Send at the end of the Pos list (Multisample: Conf list, it has no Pos page): numeric %, and a MOD
+# indicator like Start / Length if the firmware lets them be modulated. Stock shows the sends only as bars on the FX
+# screen (forum wish: "mix % per cell"). Pan is already on the Conf list, with modulation.
+P_FX1, P_FX2 = 0xBB, 0xBC
+
+
+def sends_patch(table, page):
+    at = table + page * PAGE
+    ids = list(struct.unpack_from("<36H", STOCK_IMG, at - BASE))
+    n = ids.index(0)
+    if table in CLIP_TABLES and page == 1:
+        n += 5                                       # after the clip tools (Shift .. Loop Fade), patched below
+        return (at + 2 * n, bytes(6), struct.pack("<3H", P_FX1, P_FX2, 0))
+    return (at + 2 * n, bytes(6), struct.pack("<3H", P_FX1, P_FX2, 0))
+
+
 def lfo_patch(table):
     ids = LFO_MULTI if table == TABLES["multi"] else LFO
     at = table + 2 * PAGE
@@ -97,6 +115,7 @@ def lfo_patch(table):
 PATCHES = (
     [(at, bl(at, stock), bl(at, sym[name])) for at, stock, name in HOOKS]
     + [lfo_patch(t) for t in TABLES.values()]
+    + [sends_patch(t, 4 if t == TABLES["multi"] else 1) for t in TABLES.values()]
     + [(at, bytes.fromhex(old), bl(at, sym[name])) for at, old, name in THUNKS]
     + [(at, struct.pack("<I", old), struct.pack("<I", sym[name])) for at, old, name in DATA]
     + [(at, bytes.fromhex(old), bytes.fromhex(new)) for at, old, new in CAPACITY]

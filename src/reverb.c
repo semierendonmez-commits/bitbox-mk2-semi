@@ -61,7 +61,16 @@ int fast_get(const void *store, unsigned param);       /* fastget.c: 0x08089388 
 #define P_LEVEL  0x19b             /* output level -12 .. +12 dB (500 = 0 dB), every type, Plate too */
 
 enum { ALG_PLATE, ALG_ROOM, ALG_HALL, ALG_CHAMBER, ALGS };
-static const char *const type_names[ALGS] = {"Plate", "Room", "Hall", "Chamber"};
+/* Type list (semi): every new type has a second page of settings, "Hall >" (the FX cell page shows 8 entries) */
+#define TYPE_ITEMS 7
+static const char *const type_names[TYPE_ITEMS] = {"Plate", "Room", "Room >", "Hall", "Hall >", "Chamber",
+                                                   "Chmbr >"};
+static const uint8_t type_alg[TYPE_ITEMS] = {ALG_PLATE, ALG_ROOM, ALG_ROOM, ALG_HALL, ALG_HALL, ALG_CHAMBER,
+                                             ALG_CHAMBER};
+static unsigned alg_of(unsigned item)
+{
+    return item < TYPE_ITEMS ? type_alg[item] : ALG_PLATE;
+}
 
 struct pdef { uint16_t id; uint16_t def; const char *label, *xml; };
 static const struct pdef pdefs[] = {
@@ -85,7 +94,7 @@ void reverb_register(void *table, int param, const char *label, const char *cons
     (void)label;
     (void)names;
     (void)count;
-    fw_register_list(table, param, "Type:", type_names, ALGS, xml);
+    fw_register_list(table, param, "Type:", type_names, TYPE_ITEMS, xml);
     for (int k = 0; k < NPARAMS; k++)
         fw_register_knob(table, pdefs[k].id, 8, pdefs[k].label, 0, 1000, pdefs[k].xml);
 }
@@ -154,8 +163,7 @@ struct settings {
 
 static void read_record(const void *rec, struct settings *s)
 {
-    unsigned t = (unsigned)fw_store_get(rec, P_TYPE);
-    s->type = t < ALGS ? t : ALG_PLATE;
+    s->type = alg_of((unsigned)fw_store_get(rec, P_TYPE));
     float *dst[NPARAMS] = {&s->size, &s->diff, &s->bass, &s->xover, &s->rate, &s->depth, &s->early, &s->width,
                            &s->hicut, &s->locut, &s->level};
     for (int k = 0; k < NPARAMS; k++)
@@ -632,10 +640,40 @@ void reverb_run_record(float *state, const void *rec, const float *in, float *ou
 /* the cell's Type, for the page filter (clip_page): record of an FX address (layer 3, row) */
 unsigned reverb_type_of(const void *rec)
 {
-    unsigned t = (unsigned)fw_store_get(rec, P_TYPE);
-    return t < ALGS ? t : ALG_PLATE;
+    return alg_of((unsigned)fw_store_get(rec, P_TYPE));
 }
 
 /* hidden with Type = Plate (Level stays: it works on the plate too) */
 const uint16_t reverb_param_ids[NPARAMS] = {P_SIZE, P_DIFF, P_BASS, P_XOVER, P_RATE, P_DEPTH, P_EARLY, P_WIDTH,
                                             P_HICUT, P_LOCUT, 0};
+
+/* FX cell page filter (fx.c's fx_page, from clip_page): 1 = a reverb record's page. Plate: the stock three and Level;
+   page 1: Type, Decay, Predelay, Damping, Size, Diffusion, Early, Level; page 2 ("Hall >"): Type and the other seven. */
+typedef void (*list_remove_fn)(void *list, unsigned param);
+#define fw_list_remove ((list_remove_fn)FN(0x080884c8))   /* [mk2] */
+static const uint16_t rvb_page1[] = {P_BASS, P_XOVER, P_RATE, P_DEPTH, P_WIDTH, P_HICUT, P_LOCUT, 0};
+static const uint16_t rvb_page2[] = {0x1a, 0x1e, 0x1d, P_SIZE, P_DIFF, P_EARLY, P_LEVEL, 0};
+
+static int has(const uint8_t *list, unsigned param)
+{
+    unsigned n = *(const uint32_t *)list;
+    for (unsigned i = 0; i < n && i < 0x30; i++)
+        if (*(const uint16_t *)(list + 4 + 12 * i) == param)
+            return 1;
+    return 0;
+}
+
+int reverb_page_filter(void *list, const void *rec)
+{
+    if (!has(list, P_TYPE))
+        return 0;
+    unsigned item = (unsigned)fw_store_get(rec, P_TYPE);
+    const uint16_t *hide = rvb_page1;
+    if (alg_of(item) == ALG_PLATE)
+        hide = reverb_param_ids;
+    else if (item < TYPE_ITEMS && (item == 2 || item == 4 || item == 6))
+        hide = rvb_page2;
+    for (; *hide; hide++)
+        fw_list_remove(list, *hide);
+    return 1;
+}

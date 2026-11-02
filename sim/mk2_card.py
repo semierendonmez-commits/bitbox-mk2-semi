@@ -30,7 +30,10 @@ PADS = [
 
 
 def main(a):
-    """a: [image path]"""
+    """a: [image path] [--fx]  (--fx: Sample pad FX1 Send 100 %, Keys FX2 Send 100 %, for the FX return tests)"""
+    fx = "--fx" in a
+    out2 = "--out2" in a                       # Sample pad Output = FX1/2 (bus 3: the second jack pair)
+    a = [x for x in a if x not in ("--fx", "--out2")]
     sd = os.path.abspath(a[0]) if a else os.path.join(ROOT, "out", "sim", "mk2_sd.img")
     pre = os.path.join(TREE, "Presets", "Test")
     shutil.rmtree(TREE, ignore_errors=True)
@@ -39,6 +42,10 @@ def main(a):
     src = {0: "drums.wav", 1: "drums.wav", 2: "chord.wav", 3: "chord.wav"}
     out = ['<?xml version="1.0" encoding="UTF-8"?>', "<document>", '    <session version="2">']
     for r, c, name, mode, extra in PADS:
+        if out2 and name == "Sample":
+            extra = (extra + ' outputbus="3"').strip()
+        if fx and name in ("Sample", "Keys"):
+            extra = (extra + (' fx1send="1000"' if name == "Sample" else ' fx2send="1000"')).strip()
         shutil.copyfile(os.path.join(pre, "chord.wav" if name == "Keys" else src[mode]), os.path.join(pre, name + ".wav"))
         out += [f'        <cell row="{r}" column="{c}" layer="0" filename=".\\{name}.wav" type="sample">',
                 f'            <params cellmode="{mode}" {extra}/>'.replace(" />", "/>"),

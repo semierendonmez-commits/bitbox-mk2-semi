@@ -89,8 +89,8 @@ def build(image, sd, actions, repl="micro.repl", bank2=None):
             lines.append(f"sysbus.{port} OnGPIO {pin} {'false' if act == 'keydown' else 'true'}")
             i += 2
         elif act == "hook":                                  # hook <addr> <label>: log each time it runs
-            lines.append(f'cpu AddHook {actions[i + 1]} "self.Log(LogLevel.Warning, \'HOOK {actions[i + 2]} r0=0x%x r1=0x%x\' % '
-                         f'(self.GetRegisterUnsafe(0).RawValue, self.GetRegisterUnsafe(1).RawValue))"')
+            lines.append(f'cpu AddHook {actions[i + 1]} "self.Log(LogLevel.Warning, \'HOOK {actions[i + 2]} r0=0x%x r1=0x%x r2=0x%x r3=0x%x r6=0x%x\' % '
+                         f'tuple(self.GetRegisterUnsafe(k).RawValue for k in (0, 1, 2, 3, 6)))"')
             i += 3
         elif act == "ticks":                                 # audio clock ticks so far (log)
             lines.append('python "print(\'AUDIO TICKS\', self.Machine[\'sysbus.audioDma\'].Ticks)"')

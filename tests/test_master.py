@@ -48,8 +48,8 @@ def put(pid, v):
 e.stub(0x08045012, lambda uc: None)                       # its last call (not about the store)
 e.call(0x08089CBC, SET)
 cnt, ids = store_ids(SET)
-check("settings store: 36 stock entries + 15 new (51 of 64), 0x17b (the hooked add) still there",
-      cnt == 51 and 0x17B in ids and 0x96 in ids, cnt)
+check("settings store: 36 stock entries + 15 new + FX Out (52 of 64), 0x17b (the hooked add) still there",
+      cnt == 52 and 0x17B in ids and 0x96 in ids, cnt)
 check("new entries with defaults: compressor = stock (-4 dB, 4:1, 10 ms, 250 ms, -4 dB), distortion Off / 12 dB / "
       "Tone open / Mix 100 % / Level 0 dB",
       [ids.get(COMP[k]) for k in ("thresh", "ratio", "attack", "release", "gain")] == [-4000, 4, 10, 250, -4000]
@@ -64,7 +64,8 @@ tab_ids = [list(struct.unpack_from("<4H", IMG, IDS + 16 * t - 0x08040000)) for t
 check("tabs 3..5: Comp [Type, Threshold, Ratio, Mix], Cmp2 [Attack, Release, Gain, Dist Level], "
       "Dist [Type, Drive, Tone, Mix]",
       tab_ids[3:] == [[0x19D, 0x1A1, 0x1A2, 0x19E], [0x1A3, 0x1A5, 0x1A6, 0x1AC], [0x1A7, 0x1A8, 0x1A9, 0x1AB]], tab_ids)
-check("stock tabs unchanged", tab_ids[:3] == [[0x61, 0x78, 0x9C, 0x96], [0x7F, 0x17B, 0xC2, 0], [0x59, 0x5A, 0xB5, 0xC3]])
+check("stock tabs unchanged (Rec: FX Out in its free slot, patches/fx.py)",
+      tab_ids[:3] == [[0x61, 0x78, 0x9C, 0x96], [0x7F, 0x17B, 0xC2, 0x1B5], [0x59, 0x5A, 0xB5, 0xC3]], tab_ids[:3])
 
 def tools_tab(tab):
     msg = e.new(8)
@@ -139,6 +140,18 @@ l, r = planes()
 check("Mix 30 % (Stock): 0.7 dry + 0.3 wet (the stub's wet is silence) -> 0.35", abs(l[0] - 0.35) < 1e-5 and abs(r[5] - 0.35) < 1e-5,
       (l[0], r[5]))
 put(0x19E, 1000)
+
+# Compressor: FX1/2 (0x96 = 2): the same object on bus 3 (its bus id +0x1e = 3 during the call, then back)
+ids_seen = []
+e.stubs[0x080BA43C] = lambda uc: ids_seen.append(struct.unpack("<H", uc.mem_read(uc.reg_read(UC_ARM_REG_R0) + 0x1E, 2))[0])
+e.call(0x080A44B4, engine + 0x150E4 + 3 * 20, N)
+put(0x96, 2)
+e.call(SYM["master_comp"], comp, engine)
+put(0x96, 1)
+e.call(SYM["master_comp"], comp, engine)
+check("Compressor FX1/2: stock DSP runs on bus 3 (id +0x1e = 3), restored; Out1/2: bus 0",
+      ids_seen == [3, 0] and struct.unpack("<H", e.mu.mem_read(comp + 0x1E, 2))[0] == 0, ids_seen)
+e.stubs[0x080BA43C] = _comp
 
 # --- SSL type: our DSP on bus 0, the stock DSP not called
 put(0x19D, 1)

@@ -4,6 +4,25 @@
 
 Builds for the **bitbox MK2** on top of the stock firmware **2.3.4**, named `2.3.4-s<build>`.
 
+### 2.3.4-sD (2026-11-03)
+
+- **FX Out** (Tools -> Rec, its free fourth slot): where the FX returns go: Out1/2 (stock), Dly FX1/2, Rvb FX1/2,
+  FX1/2 (both returns on the second jack pair), Dly1 Rvb2 (delay on the FX1 jack, reverb on the FX2 jack). Pads stay
+  on their own Output. The returns no longer pass the master compressor / distortion when they leave Out1/2.
+- **Delay types and modulation** (FX1 cell): Type Digital (stock) / Tape / BBD, and a second page (Type "Tape >"):
+  Mod Rate (0.05-10 Hz), Mod Depth (up to 10 ms), Flutter (6.7 Hz), Drive, Tone, Level (+-12 dB), Mod Phase (L/R).
+  The modulation moves the delay line's read target, so every repeat is pitched again through the feedback (wow /
+  chorus); Drive and Tone colour what goes onto the line, so repeats get darker and softer (Tape: stronger saturation
+  and head loss plus slow drift; BBD: darker, softer clip). Digital with Depth / Flutter 0, Drive 0, Tone 100 % is
+  the stock delay. Delay Level is the "FX level" wish for FX1 (the reverb had Level already).
+- **Reverb second page**: Type list Plate, Room, Room >, Hall, Hall >, Chamber, Chmbr >. Page 1: Type, Decay,
+  Predelay, Damping, Size, Diffusion, Early, Level; page 2: Bass Mult, Crossover, Mod Rate, Mod Depth, Width, Hi Cut,
+  Lo Cut (sA showed only the first eight of fifteen). Changing Type shows the page again at once.
+- **Compressor bus**: "Compressor:" (Tools -> Main) is a list Off / Out1/2 / FX1/2 / Both. FX1/2 runs the compressor
+  on the second jack pair instead; Both adds a second compressor (our SSL-style detector with the Stock or SSL
+  settings) on FX1/2. Presets: On = Out1/2.
+- **FX1 / FX2 Send** as numeric % rows at the end of the Pos list (Sample / Clip / Slicer / Granular; Multisample: Conf).
+
 ### 2.3.4-sC (2026-11-02)
 
 - **Master section** from portkit (src/master.c): the stock master compressor's settings with Comp Type Stock / SSL

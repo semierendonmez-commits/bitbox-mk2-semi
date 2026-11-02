@@ -38,8 +38,9 @@ e.stub(0x0806A2D4, fake_knob)
 e.call(SYM["reverb_register"], 0, 0x178, 0x080C203C, 0x080C58C0, stack=(2, 0x080C2044))
 del e.stubs[0x0806A27C], e.stubs[0x0806A2D4]
 t = lists.get(0x178)
-check("Type list: Plate, Room, Hall, Chamber (label Type:, xml stays fx2algo's slot)",
-      t and t[0] == "Type:" and [e.cstr(e.r32(t[1] + 4 * k)) for k in range(t[2])] == ["Plate", "Room", "Hall", "Chamber"])
+check("Type list: Plate, Room, Room >, Hall, Hall >, Chamber, Chmbr > (label Type:, xml stays fx2algo's slot)",
+      t and t[0] == "Type:" and [e.cstr(e.r32(t[1] + 4 * k)) for k in range(t[2])]
+      == ["Plate", "Room", "Room >", "Hall", "Hall >", "Chamber", "Chmbr >"])
 check("eleven settings registered: ids 0x191-0x19b (Level last), 0..1000",
       [k[0] for k in knobs] == list(range(0x191, 0x19C)) and knobs[-1][2] == "Level:" and all(k[1] == 8 and k[3] == 0 and k[4] == 1000 for k in knobs),
       knobs)
@@ -55,7 +56,12 @@ check("reverb record: Type, Decay, Predelay, Damping, then Size .. Lo Cut, Level
       ids == [0x178, 0x1A, 0x1E, 0x1D] + list(range(0x191, 0x19C))
       and vals == [0, 600, 40, 500, 500, 700, 500, 400, 300, 400, 300, 1000, 800, 100, 500], (ids, vals))
 
-def setp(pid, v):
+TYPE_ITEM = [0, 1, 3, 5]          # algorithm (Plate, Room, Hall, Chamber) -> Type list item (page-2 items between)
+
+
+def setp(pid, v, raw=False):
+    if pid == 0x178 and not raw and 0 <= v < 4:
+        v = TYPE_ITEM[v]
     e.call(0x080893B2, REC, pid, v)
 
 # --- real plate state (init 0x080aae74 on 0xb0 bytes), reverb object with the cell's id
@@ -176,7 +182,7 @@ setp(0x197, 300)
 
 # --- page filter: Type Plate hides the settings
 def page_ids(tval):
-    setp(0x178, tval)
+    setp(0x178, tval, raw=True)
     lst = e.new(4 + 12 * 0x30)
     def fill(uc):
         pids = [0x178, 0x1A, 0x1E, 0x1D] + list(range(0x191, 0x19C))
@@ -191,8 +197,11 @@ def page_ids(tval):
     e.call(SYM["clip_page"], APP, m, lst, 0)
     del e.stubs[0x08078EC8]
     return [struct.unpack_from("<H", e.mu.mem_read(lst + 4 + 12 * k, 2))[0] for k in range(e.r32(lst))]
-check("reverb page: Plate shows Type + stock three + Level; Hall shows all 15",
-      page_ids(0) == [0x178, 0x1A, 0x1E, 0x1D, 0x19B] and len(page_ids(2)) == 15)
+check("reverb page: Plate shows Type + stock three + Level; Hall page 1: Type, stock three, Size, Diffusion, Early, "
+      "Level; Hall > (page 2): Type and the other seven",
+      page_ids(0) == [0x178, 0x1A, 0x1E, 0x1D, 0x19B]
+      and page_ids(3) == [0x178, 0x1A, 0x1E, 0x1D, 0x191, 0x192, 0x197, 0x19B]
+      and page_ids(4) == [0x178, 0x193, 0x194, 0x195, 0x196, 0x198, 0x199, 0x19A], (page_ids(3), page_ids(4)))
 
 # Level: -12 / 0 / +12 dB on the plate (stock core, scaled after it)
 def level_peak(v):

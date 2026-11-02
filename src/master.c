@@ -107,8 +107,12 @@ static const struct pdef pdefs[] = {
 #define NPDEFS (int)(sizeof pdefs / sizeof pdefs[0])
 
 /* from interp_register (filter.c): the parameter table */
+void fx_register(void *table);                          /* fx.c */
+void fx_store_add(void *store);
+
 void master_register(void *table)
 {
+    fx_register(table);
     for (int k = 0; k < NPDEFS; k++) {
         const struct pdef *p = &pdefs[k];
         if (p->type == 0)
@@ -124,6 +128,7 @@ void master_store_add(void *store, unsigned param, int value)
     fw_store_add(store, param, value);
     for (int k = 0; k < NPDEFS; k++)
         fw_store_add(store, pdefs[k].id, pdefs[k].def);
+    fx_store_add(store);
 }
 
 /* --- pages (bitbox MK2): three Tools tabs next to Main / Rec / MIDIIn --------------------------------------------------
@@ -186,29 +191,96 @@ typedef void *(*bus_fn)(void *engine, unsigned id);
 #define fw_bus ((bus_fn)FN(0x080a9498))
 typedef void (*node_fn)(void *node, void *engine);
 
-static void ssl_run(void *bus);
+struct cset { float thr, slope, makeup, aa, ar; int autorel; };
+struct sslst;
+static void ssl_run(void *bus, struct sslst *s, const struct cset *c);
+static void ssl_settings(struct cset *c);
+static void stock_settings(struct cset *c);
+#define SST  ((struct sslst *)0x2406d180u)              /* SSL state, Out1/2 */
+#define SSTB ((struct sslst *)0x2406d190u)              /* [mk2] SSL state, FX1/2 (Compressor: Both) */
 #define DRY_L ((float *)0x2406e000u)                     /* dry copy for Mix: 2 x 512 floats (patch RAM, free) */
 #define DRY_R ((float *)0x2406e800u)
 
 /* Comp Type Stock: the stock DSP with our settings; SSL: ours (ssl_run) on the same bus, then the node the stock DSP
    would hand on to (object +8, vtable +0xc). Mix (both): dry / wet. */
+static int dry_save(void *bus, float **l, float **r)
+{
+    int mix = fw_store_get(SETTINGS, P_C_MIX);
+    int n = fw_frames(bus);
+    int dry = mix >= 0 && mix < 1000 && !*((const uint8_t *)bus + 0x10) && n > 0 && n <= 512;
+    if (!dry)
+        return 0;
+    fw_planes(bus, l, r);
+    if (!*l)
+        return 0;
+    for (int k = 0; k < n; k++) {
+        DRY_L[k] = (*l)[k];
+        DRY_R[k] = *r ? (*r)[k] : 0.0f;
+    }
+    return n;
+}
+
+static void dry_mix(int n, float *l, float *r)
+{
+    float w = (float)fw_store_get(SETTINGS, P_C_MIX) * 0.001f;
+    for (int k = 0; k < n; k++) {
+        l[k] = DRY_L[k] + w * (l[k] - DRY_L[k]);
+        if (r && r != l)
+            r[k] = DRY_R[k] + w * (r[k] - DRY_R[k]);
+    }
+}
+
+static void comp_main(uint8_t *comp, void *engine);
+
+/* "Compressor:" (0x96) is a list here: Off, Out1/2 (stock On), FX1/2, Both (comp_register); the engine's flag is
+   value != 0 (0x08096fd4). FX1/2: the same compressor on bus 3 (the FX1/2 jacks) instead of bus 0, by its bus id
+   (object +0x1e). Both: bus 0 as before, and bus 3 through our compressor with a state of its own (the stock object
+   runs its follower node once per block, so it cannot run twice). */
+#define CB_OUT  1
+#define CB_FX   2
+#define CB_BOTH 3
+static const char *const comp_names[] = {"Off", "Out1/2", "FX1/2", "Both"};
+
+void comp_register(void *table, int param, int type, const char *label, int min, int max, const char *xml)
+{
+    (void)type;
+    (void)min;
+    (void)max;
+    fw_register_list(table, param, label, comp_names, 4, xml);
+}
+
 void master_comp(uint8_t *comp, void *engine)
 {
-    void *bus = fw_bus(engine, *(const uint16_t *)(comp + 0x1e));
-    int mix = fw_store_get(SETTINGS, P_C_MIX);
-    int silent = *((const uint8_t *)bus + 0x10);
-    int n = fw_frames(bus);
-    float *l = 0, *r = 0;
-    int dry = mix >= 0 && mix < 1000 && !silent && n > 0 && n <= 512;
-    if (dry) {
-        fw_planes(bus, &l, &r);
-        for (int k = 0; k < n; k++) {
-            DRY_L[k] = l[k];
-            DRY_R[k] = r ? r[k] : 0.0f;
-        }
+    int sel = fw_store_get(SETTINGS, P_COMP_ON);
+    uint16_t *bid = (uint16_t *)(comp + 0x1e), keep = *bid;
+    if (sel == CB_FX)
+        *bid = 3;
+    comp_main(comp, engine);
+    *bid = keep;
+    if (sel == CB_BOTH) {
+        void *bus = fw_bus(engine, 3);
+        float *l = 0, *r = 0;
+        int n = dry_save(bus, &l, &r);
+        struct cset c;
+        if (fw_store_get(SETTINGS, P_C_TYPE) == C_SSL)
+            ssl_settings(&c);
+        else
+            stock_settings(&c);
+        ssl_run(bus, SSTB, &c);
+        if (n)
+            dry_mix(n, l, r);
     }
+}
+
+static void comp_main(uint8_t *comp, void *engine)
+{
+    void *bus = fw_bus(engine, *(const uint16_t *)(comp + 0x1e));
+    float *l = 0, *r = 0;
+    int n = dry_save(bus, &l, &r);
     if (fw_store_get(SETTINGS, P_C_TYPE) == C_SSL) {
-        ssl_run(bus);
+        struct cset c;
+        ssl_settings(&c);
+        ssl_run(bus, SST, &c);
         void *child = *(void **)(comp + 8);
         if (child)
             ((node_fn)(*(uint32_t **)child)[3])(child, engine);
@@ -224,14 +296,8 @@ void master_comp(uint8_t *comp, void *engine)
         }
         fw_comp(comp, engine);
     }
-    if (dry) {
-        float w = (float)mix * 0.001f;
-        for (int k = 0; k < n; k++) {
-            l[k] = DRY_L[k] + w * (l[k] - DRY_L[k]);
-            if (r && r != l)
-                r[k] = DRY_R[k] + w * (r[k] - DRY_R[k]);
-        }
-    }
+    if (n)
+        dry_mix(n, l, r);
 }
 
 /* --- distortion ---------------------------------------------------------------------------------------------------- */
@@ -409,7 +475,7 @@ static const float ssl_release_s[] = {0.1f, 0.3f, 0.6f, 1.2f};
 #define SSL_AUTO   4
 #define SSL_KNEE   2.0f
 struct sslst { uint32_t magic; float gf, gs; };
-#define SST ((struct sslst *)0x2406d180u)
+_Static_assert(sizeof(struct sslst) <= 0x10, "SSL state fits its 0x10 slot");
 #define SMAGIC 0x53534c21u       /* "SSL!" */
 
 static inline __attribute__((always_inline)) float log2_fast(float x)
@@ -435,9 +501,35 @@ static int idx(unsigned param, int count, int def)
     return v >= 0 && v < count ? v : def;
 }
 
-static void ssl_run(void *bus)
+static void ssl_settings(struct cset *c)
 {
-    struct sslst *s = SST;
+    c->thr = (float)fw_store_get(SETTINGS, P_C_THRESH) * 0.001f;
+    c->slope = 1.0f / ssl_ratio[idx(P_S_RATIO, 3, 0)] - 1.0f;          /* gain change per dB over: 1/R - 1 */
+    c->makeup = (float)fw_store_get(SETTINGS, P_C_GAIN) * 0.001f;
+    int rel = idx(P_S_REL, 5, SSL_AUTO);
+    c->aa = coef(ssl_attack_s[idx(P_S_ATTACK, 6, 5)]);
+    c->ar = coef(rel == SSL_AUTO ? 0.1f : ssl_release_s[rel]);
+    c->autorel = rel == SSL_AUTO;
+}
+
+/* Comp Type Stock's settings for our compressor (bus 3 with Compressor: Both) */
+static void stock_settings(struct cset *c)
+{
+    int ratio = fw_store_get(SETTINGS, P_C_RATIO), att = fw_store_get(SETTINGS, P_C_ATTACK);
+    int rel = fw_store_get(SETTINGS, P_C_REL);
+    ratio = ratio < 1 ? 4 : ratio > 20 ? 20 : ratio;
+    att = att < 1 ? 1 : att > 200 ? 200 : att;
+    rel = rel < 10 ? 10 : rel > 2000 ? 2000 : rel;
+    c->thr = (float)fw_store_get(SETTINGS, P_C_THRESH) * 0.001f;
+    c->slope = 1.0f / (float)ratio - 1.0f;
+    c->makeup = (float)fw_store_get(SETTINGS, P_C_GAIN) * 0.001f;
+    c->aa = coef((float)att * 0.001f);
+    c->ar = coef((float)rel * 0.001f);
+    c->autorel = 0;
+}
+
+static void ssl_run(void *bus, struct sslst *s, const struct cset *c)
+{
     if (s->magic != SMAGIC) {
         s->gf = s->gs = 0.0f;
         s->magic = SMAGIC;
@@ -445,12 +537,8 @@ static void ssl_run(void *bus)
     int n = fw_frames(bus);
     if (n <= 0 || n > 512)
         return;
-    float thr = (float)fw_store_get(SETTINGS, P_C_THRESH) * 0.001f;
-    float slope = 1.0f / ssl_ratio[idx(P_S_RATIO, 3, 0)] - 1.0f;          /* gain change per dB over: 1/R - 1 */
-    float makeup = (float)fw_store_get(SETTINGS, P_C_GAIN) * 0.001f;
-    int rel = idx(P_S_REL, 5, SSL_AUTO);
-    float aa = coef(ssl_attack_s[idx(P_S_ATTACK, 6, 5)]);
-    float ar = coef(rel == SSL_AUTO ? 0.1f : ssl_release_s[rel]);
+    float thr = c->thr, slope = c->slope, makeup = c->makeup, aa = c->aa, ar = c->ar;
+    int autorel = c->autorel;
     float sa = coef(0.3f), sr = coef(1.2f);
     float gf = s->gf, gs = s->gs;
     if (*((const uint8_t *)bus + 0x10)) {                 /* silent: let the reduction recover, signal untouched */
@@ -485,7 +573,7 @@ static void ssl_run(void *bus)
             gc = slope * over;
         gf = gc < gf ? aa * gf + (1.0f - aa) * gc : ar * gf + (1.0f - ar) * gc;
         float g = gf;
-        if (rel == SSL_AUTO) {
+        if (autorel) {
             gs = gc < gs ? sa * gs + (1.0f - sa) * gc : sr * gs + (1.0f - sr) * gc;
             g = gs < gf ? gs : gf;
         }

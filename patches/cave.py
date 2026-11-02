@@ -8,12 +8,14 @@ Builds (portkit's micro history up to pkZD: portkit-micro CHANGELOG.md):
       Loop Fade / Sync 1/32, reverb types; MK2 page placement (LFO page, Pos list, Conf list)
   B = fix: Clip / Slicer Poly Mode Mono honoured (patches/fixes.py)
   C = master section: compressor settings (Stock / SSL, Mix) and master distortion on Tools tabs Comp / Cmp2 / Dist
+  D = FX: return routing (FX Out) and Delay Level, delay types Digital / Tape / BBD with modulation and loop colour,
+      two-page delay and reverb cells, Compressor bus (Out1/2, FX1/2, Both), numeric FX sends in the Pos list
 """
 import os
 
 from thumb import ROOT, STOCK_END
 
-BUILD = b"C"
+BUILD = b"D"
 
 
 def slot(text, size=16):
