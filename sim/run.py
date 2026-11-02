@@ -20,8 +20,11 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SIM = os.path.join(ROOT, "sim")
 OUT = os.path.join(ROOT, "out", "sim")
-RENODE = os.path.expanduser("~/tools/renode/Renode.app/Contents/MacOS/renode")
+RENODE = os.environ.get("RENODE") or (os.path.expanduser("~/tools/renode/Renode.app/Contents/MacOS/renode")
+    if sys.platform == "darwin" else os.path.expanduser("~/tools/renode/renode"))
 IMAGES = {"stock": os.path.join(ROOT, "firmware", "MICRO.BIN"),
+          "mk2": os.path.join(ROOT, "firmware", "BITBOXMK2.bin"),
+          "semi": os.path.join(ROOT, "out", "mk2", "BITBOXMK2.bin"),
           "bb": os.path.join(ROOT, "firmware", "BLACKBOX.bin"),
           "bbmod": os.path.join(ROOT, "out", "bbmod", "BLACKBOX.bin"),
           "bbbase": os.path.join(ROOT, "out", "bb", "base", "BLACKBOX.bin"),
@@ -32,6 +35,9 @@ IMAGES = {"stock": os.path.join(ROOT, "firmware", "MICRO.BIN"),
                                   "BLACKBOX.bin"),
           "pk": os.path.join(ROOT, "out", "fidelity+pages+padpages+sound+reverb+fx3+master+cave", "MICRO.BIN")}
 BUTTONS = {"HOME": ("gpioPortG", 3), "TOOLS": ("gpioPortD", 4), "LEFT": ("gpioPortC", 13), "RIGHT": ("gpioPortB", 13)}
+# MK2 2.3.4: two keys, table 0x2400b2c0 (2 x 0x18, polled at 0x08041908, debounce 25 ms; read in the simulation):
+# index 0 = PC2, index 1 = PC3 (which is HOME / INFO: see sim/README-mk2.md)
+MK2_BUTTONS = {"K0": ("gpioPortC", 2), "K1": ("gpioPortC", 3)}
 # Blackbox 3.1.9: 13 keys, active low, polled at 0x080438DE (table index = order below; names = index until known)
 BB_BUTTONS = {f"B{k}": pp for k, pp in enumerate([
     ("gpioPortI", 8), ("gpioPortD", 4), ("gpioPortD", 7), ("gpioPortI", 12), ("gpioPortI", 14), ("gpioPortG", 3),
@@ -53,10 +59,10 @@ def build(image, sd, actions, repl="micro.repl", bank2=None):
              f"$bin=@{image}", f"$repl=@{os.path.join(SIM, repl)}", f"include @{os.path.join(SIM, 'boot.resc')}"]
     if bank2:                                            # flash bank 2 as the card loader would leave it (JOEBOX)
         lines.append(f"sysbus LoadBinary @{os.path.abspath(bank2)} 0x08100000")
-    keys = BUTTONS if repl == "micro.repl" else BB_BUTTONS
+    keys = BUTTONS if repl == "micro.repl" else MK2_BUTTONS if repl == "mk2.repl" else BB_BUTTONS
     for port, pin in keys.values():
         lines.append(f"sysbus.{port} OnGPIO {pin} true")
-    sdr = "sd.resc" if repl == "micro.repl" else "sd_blackbox.resc"   # diskio hooks at each firmware's addresses
+    sdr = {"micro.repl": "sd.resc", "mk2.repl": "sd_mk2.resc"}.get(repl, "sd_blackbox.resc")   # diskio hooks per image
     lines += [l.replace("$simdir", SIM).replace("$sdimg", sd) for l in body(os.path.join(SIM, sdr))]
     for u in (x for x in UARTS if not (repl != "micro.repl" and x == "lpuart1")):   # serial output -> out/sim/uart_<name>.txt
         lines.append(f"sysbus.{u} CreateFileBackend @{os.path.join(OUT, 'uart_' + u + '.txt')} true")
@@ -217,11 +223,20 @@ def main(a):
     open(resc, "w").write("\n".join(lines) + "\n")
     with open(os.path.join(OUT, "run.log"), "w") as log:
         # no stdin: on a script error Renode's console gets EOF and exits instead of waiting for input
-        r = subprocess.run([RENODE, "--console", "--disable-gui", "--plain", resc], stdin=subprocess.DEVNULL, stdout=log,
-                           stderr=subprocess.STDOUT, timeout=1800)
+        # On Linux, Renode 1.16 with stdin at EOF (DEVNULL) spins in ConsoleIOSource and runs out of memory: give it an
+        # open pipe that never delivers input instead; the script's final `quit` ends it, the timeout any error stop.
+        stdin = subprocess.DEVNULL if sys.platform == "darwin" else subprocess.PIPE
+        p = subprocess.Popen([RENODE, "--console", "--disable-gui", "--plain", resc], stdin=stdin, stdout=log,
+                             stderr=subprocess.STDOUT)
+        try:
+            p.wait(timeout=1800)
+        except subprocess.TimeoutExpired:
+            p.kill()
+            p.wait()
+        r = p
     print("renode exit", r.returncode)
     for name, d in shots:
-        rot = "270" if repl == "micro.repl" else "0"     # Micro panel is portrait, the Blackbox LTDC landscape
+        rot = "270" if repl == "micro.repl" else "0"     # Micro panel is portrait, the Blackbox / MK2 LTDC landscape (MK2: to check)
         subprocess.run([sys.executable, "-I", os.path.join(SIM, "screenshot.py"), d, os.path.join(OUT, name + ".png"),
                         "--rot", rot])
 

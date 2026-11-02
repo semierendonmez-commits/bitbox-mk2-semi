@@ -1,0 +1,8 @@
+# Virtual SD card for the bitbox MK2 2.3.4 (FatFS diskio table 0x080C0200; micro 0x080BF030, matched by
+# tools/micro2mk2.py and checked against the table words). Include after boot.resc with $sdimg / $simdir set.
+python "import sys; sys.path.append('$simdir'); import sdhook; sdhook.open_image('$sdimg')"
+cpu AddHook 0x08045CC8 "import sdhook; sdhook.init(self)"
+cpu AddHook 0x08045EA4 "import sdhook; sdhook.status(self)"
+cpu AddHook 0x08045D68 "import sdhook; sdhook.read(self)"
+cpu AddHook 0x08045DD8 "import sdhook; sdhook.write(self)"
+cpu AddHook 0x08045E4C "import sdhook; sdhook.ioctl(self)"
