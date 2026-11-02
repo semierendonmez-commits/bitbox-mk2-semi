@@ -47,7 +47,13 @@ def run(path):
         def h(uc, *_):
             r1, r2, r3 = (uc.reg_read(r) for r in (UC_ARM_REG_R1, UC_ARM_REG_R2, UC_ARM_REG_R3))
             label = r3 if kind == "knob" else r2
-            out.append((r1, kind, s(label)))
+            sp = uc.reg_read(UC_ARM_REG_SP)
+            st = struct.unpack("<3I", uc.mem_read(sp, 12))
+            xml = s(st[2]) if kind == "knob" else s(st[1]) if kind == "list" else ""
+            names = []
+            if kind == "list":
+                names = [s(struct.unpack("<I", uc.mem_read(r3 + 4 * k, 4))[0]) for k in range(min(st[0], 24))]
+            out.append((r1, kind, s(label), xml, names))
             ret(uc)
         return h
 
@@ -67,6 +73,6 @@ if __name__ == "__main__":
     if "--ids" in sys.argv:
         print(" ".join(f"{i:#x}" for i in sorted({r[0] for r in regs})))
     else:
-        for pid, kind, label in regs:
-            print(f"{pid:#05x} {kind:7} {label!r}")
+        for pid, kind, label, xml, names in regs:
+            print(f"{pid:#05x} {kind:7} {label!r:18} xml={xml!r:20} {names if names else ''}")
     print(f"{len(regs)} registrations, max id {max(r[0] for r in regs):#x}", file=sys.stderr)

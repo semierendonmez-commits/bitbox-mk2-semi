@@ -22,7 +22,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "patches"))
 from thumb import BASE, bl_target, symbols  # noqa: E402
 
-IMG = open(os.path.join(ROOT, "out", "fidelity+pages+sound+reverb+cave", "BITBOXMK2.bin"), "rb").read()
+IMG = open(os.path.join(ROOT, "out", "fidelity+pages+sound+reverb+fixes+cave", "BITBOXMK2.bin"), "rb").read()
 SYM = symbols(os.path.join(ROOT, "out", "cave.elf"))
 
 APP_PADS = 0x24015170 + 0x1840

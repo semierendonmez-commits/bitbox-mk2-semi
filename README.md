@@ -9,7 +9,7 @@ address translation; the UI is placed anew for the MK2's screens and its two key
 > Unofficial. Not affiliated with or supported by 1010music. Running modified firmware is at your own risk and may
 > affect your warranty. Keep your stock `BITBOXMK2.bin` and flash it back before sending a unit in for service.
 
-## Status: build 2.3.4-sA (first MK2 build)
+## Status: build 2.3.4-sB
 
 **emulation** = verified in the Unicorn tests and the Renode simulation of the MK2, **not yet on a unit**.
 Nothing here is hardware-tested yet.
@@ -23,7 +23,8 @@ Nothing here is hardware-tested yet.
 | **Sync 1/32**; Play Len / Stretch hidden while Quant / Sync make them ineffective | Pos list | emulation |
 | **Reverb types** Plate / Room / Hall / Chamber with ten settings and **Level** | FX2 → INFO (Type, Level shown on Plate) | emulation (Plate page) |
 | **CPU load** after the free-memory text | status bar (e.g. `243M  34%`) | emulation (the simulator's load value is not meaningful) |
-| Splash / Menu version **semi mod 2.3.4-sA** | boot, Menu lower right | emulation |
+| **Fix: Clip / Slicer Poly Mode Mono honoured** (stock: a saved Sample Poly Mode overrides it, slices overlap) | Conf list | emulation (Renode + Unicorn) |
+| Splash / Menu version **semi mod 2.3.4-sB** | boot, Menu lower right | emulation |
 
 Not ported yet: FX3 (third send), master compressor / distortion, recording sends / monitor (portkit reaches their
 pages with the micro's arrow keys; the MK2 needs its own placement), pads 9–16 (not needed: the MK2 has 16 pads).
@@ -41,11 +42,12 @@ work also the micro 2.3.4 `MICRO.BIN` (SHA-256 `54ecc3e5…4365`). Optional: [Re
 ```sh
 ./setup.sh
 ./build.sh                                                   # src/ -> out/cave.elf, out/cave.bin
-.venv/bin/python -I patch.py fidelity pages sound reverb cave
-                      # -> out/fidelity+pages+sound+reverb+cave/BITBOXMK2.bin
+.venv/bin/python -I patch.py fidelity pages sound reverb fixes cave
+                      # -> out/fidelity+pages+sound+reverb+fixes+cave/BITBOXMK2.bin
 .venv/bin/python -I tests/test_fidelity.py                   # Unicorn tests on the patched image
 .venv/bin/python -I tests/test_reverb.py
 .venv/bin/python -I tests/test_ram.py
+.venv/bin/python -I tests/test_fixes.py
 ```
 
 `patch.py` only writes an image when every check passes: stock hash, expected stock bytes at every patch site, zero
@@ -57,7 +59,7 @@ limit is not known - vwal's 2.3.4+c, 696,708 bytes, runs).
 
 ```sh
 .venv/bin/python -I sim/mk2_card.py out/sim/mk2_sd.img       # test card: one preset, Sample / Clip / Slicer / Granular
-cp out/fidelity+pages+sound+reverb+cave/BITBOXMK2.bin out/mk2/
+cp out/fidelity+pages+sound+reverb+fixes+cave/BITBOXMK2.bin out/mk2/
 .venv/bin/python -I sim/run.py --image semi --repl mk2.repl --sd out/sim/mk2_sd.img \
     wait 10 shot pads tap 30 210 0.15 wait 0.8 press K1 wait 1 press K1 wait 1 shot params
 ```

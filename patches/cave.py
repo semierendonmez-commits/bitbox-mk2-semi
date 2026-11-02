@@ -6,12 +6,13 @@ build: line 2 "by 1010music" -> "semi mod", line 3 "2.3.4" -> "2.3.4-s<BUILD>". 
 Builds (portkit's micro history up to pkZD: portkit-micro CHANGELOG.md):
   A = first MK2 build: cave, CPU load, Fidelity + 24 dB SVF, Drive / Filter 2, clip Shift / Play Len / Stretch /
       Loop Fade / Sync 1/32, reverb types; MK2 page placement (LFO page, Pos list, Conf list)
+  B = fix: Clip / Slicer Poly Mode Mono honoured (patches/fixes.py)
 """
 import os
 
 from thumb import ROOT, STOCK_END
 
-BUILD = b"A"
+BUILD = b"B"
 
 
 def slot(text, size=16):

@@ -46,6 +46,8 @@ BB_BUTTONS = {f"B{k}": pp for k, pp in enumerate([
 PRESS_S = 0.1
 TOUCH_FLIP_Y = os.environ.get("SIM_TOUCH_FLIP_Y", "1") == "1"   # the UI's y counts from the bottom (checked: see README)
 MIDI_INS = ("uart4", "usart6")                               # their TX carries MIDI clock (0xf8): the two MIDI ports
+if os.environ.get("SIM_MIDI_IN"):                           # one port only (both ports = every note twice)
+    MIDI_INS = tuple(os.environ["SIM_MIDI_IN"].split(","))
 UARTS = ("usart1", "usart2", "usart3", "uart4", "uart5", "usart6", "uart7", "uart8", "lpuart1")
 
 

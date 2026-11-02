@@ -4,6 +4,13 @@
 
 Builds for the **bitbox MK2** on top of the stock firmware **2.3.4**, named `2.3.4-s<build>`.
 
+### 2.3.4-sB (2026-11-02)
+
+- **Fix: Slicer / Clip "Poly Mode: Mono" not honoured.** The engine took the mono flag from the Sample pads' Poly Mode
+  (0x82) and ignored the Clip / Slicer one (0x83); a preset whose saved 0x82 was a Poly value made a "Mono" slicer
+  play overlapping slices (heard with PlayThru on). Now 0x83 decides, 0x82 is ignored on Clip / Slicer pads
+  (patches/fixes.py). Reproduced and checked in the Renode simulation and in tests/test_fixes.py.
+
 ### 2.3.4-sA (2026-11-02): first MK2 build (emulation only, not on a unit yet)
 
 Ported from portkit pkZD (micro): Fidelity (+ on Clip / Slicer / Granular Conf lists), 24 dB SVF filter, Drive,
