@@ -7,6 +7,8 @@ map (re/mk2_map.py), so the MK2 tree keeps portkit's structure and later portkit
 
 Addresses are recognised as 0x + 8 hex digits (optional C suffix u / U), in the flash image, AXI / D2 SRAM or SDRAM
 range. Map values keep the case style of the source. Files already ported carry the marker below and are skipped.
+Lines containing the tag [mk2] already hold MK2 addresses (new code written into a portkit file before porting it)
+and are left alone.
 """
 import os
 import re
@@ -16,6 +18,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(ROOT, "re"))
 sys.path.append(os.path.join(ROOT, "tools"))
 MARK = "ported to the bitbox MK2 2.3.4 by tools/port_mk2.py"
+TAG = "[mk2]"
 RX = re.compile(r"0x([0-9a-fA-F]{8})(?=[uU]?\b)")
 
 
@@ -26,6 +29,8 @@ def in_range(v):
 def addrs(path):
     out = {}
     for n, line in enumerate(open(path), 1):
+        if TAG in line:
+            continue
         for m in RX.finditer(line):
             v = int(m.group(1), 16)
             if in_range(v):
@@ -76,7 +81,7 @@ def main(a):
         def sub(m):
             v = int(m.group(1), 16)
             return fmt(amap[v][0], m.group(1)) if in_range(v) else m.group(0)
-        out = RX.sub(sub, text)
+        out = "".join(line if TAG in line else RX.sub(sub, line) for line in text.splitlines(keepends=True))
         c = "#" if f.endswith(".py") else "//" if f.endswith(".S") else None
         note = f"{c} {MARK}\n" if c else f"/* {MARK} */\n"
         if f.endswith(".ld"):

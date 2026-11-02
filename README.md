@@ -9,7 +9,7 @@ address translation; the UI is placed anew for the MK2's screens and its two key
 > Unofficial. Not affiliated with or supported by 1010music. Running modified firmware is at your own risk and may
 > affect your warranty. Keep your stock `BITBOXMK2.bin` and flash it back before sending a unit in for service.
 
-## Status: build 2.3.4-sB
+## Status: build 2.3.4-sC
 
 **emulation** = verified in the Unicorn tests and the Renode simulation of the MK2, **not yet on a unit**.
 Nothing here is hardware-tested yet.
@@ -24,10 +24,12 @@ Nothing here is hardware-tested yet.
 | **Reverb types** Plate / Room / Hall / Chamber with ten settings and **Level** | FX2 → INFO (Type, Level shown on Plate) | emulation (Plate page) |
 | **CPU load** after the free-memory text | status bar (e.g. `243M  34%`) | emulation (the simulator's load value is not meaningful) |
 | **Fix: Clip / Slicer Poly Mode Mono honoured** (stock: a saved Sample Poly Mode overrides it, slices overlap) | Conf list | emulation (Renode + Unicorn) |
-| Splash / Menu version **semi mod 2.3.4-sB** | boot, Menu lower right | emulation |
+| **Master compressor** settings: Comp Type Stock / SSL (SSL: ratio 2/4/10, attack 0.1–30 ms, release 0.1–1.2 s / Auto), Threshold, Ratio, Attack, Release, Gain, **Mix** (parallel) | Tools → **Comp**, **Cmp2** tabs (Compressor On/Off stays on Main) | emulation |
+| **Master distortion** Soft / Hard / Fold / Tube, 2x oversampled: Drive, Tone, Mix, Level (Dist Lvl on Cmp2) | Tools → **Dist** tab | emulation |
+| Splash / Menu version **semi mod 2.3.4-sC** | boot, Menu lower right | emulation |
 
-Not ported yet: FX3 (third send), master compressor / distortion, recording sends / monitor (portkit reaches their
-pages with the micro's arrow keys; the MK2 needs its own placement), pads 9–16 (not needed: the MK2 has 16 pads).
+Not ported yet: FX3 (third send) and the recording sends / monitor (their cells sit on the micro's Effects screen
+behind its arrow keys; the MK2 FX screen needs its own placement), pads 9–16 (not needed: the MK2 has 16 pads).
 
 **Presets:** values are stored by parameter name (`pkdrive`, `pkshift`, ...). Stock presets load as before; the new
 controls start at their defaults. The parameter table and ids are identical on micro and MK2 (240 registrations,
@@ -42,24 +44,25 @@ work also the micro 2.3.4 `MICRO.BIN` (SHA-256 `54ecc3e5…4365`). Optional: [Re
 ```sh
 ./setup.sh
 ./build.sh                                                   # src/ -> out/cave.elf, out/cave.bin
-.venv/bin/python -I patch.py fidelity pages sound reverb fixes cave
-                      # -> out/fidelity+pages+sound+reverb+fixes+cave/BITBOXMK2.bin
+.venv/bin/python -I patch.py fidelity pages sound reverb fixes master cave
+                      # -> out/fidelity+pages+sound+reverb+fixes+master+cave/BITBOXMK2.bin
 .venv/bin/python -I tests/test_fidelity.py                   # Unicorn tests on the patched image
 .venv/bin/python -I tests/test_reverb.py
 .venv/bin/python -I tests/test_ram.py
 .venv/bin/python -I tests/test_fixes.py
+.venv/bin/python -I tests/test_master.py
 ```
 
 `patch.py` only writes an image when every check passes: stock hash, expected stock bytes at every patch site, zero
 repack, every change inside a registered range, every redirected call lands on a function of ours, every caller of a
-replaced function is hooked. Build sA: 696,340 bytes (cave 21,444 bytes, ends 0x080EA314; the MK2 bootloader's upper
-limit is not known - vwal's 2.3.4+c, 696,708 bytes, runs).
+replaced function is hooked. Build sC: 701,280 bytes (cave 26,384 bytes, ends 0x080F1260). The MK2 bootloader's upper limit is not known: vwal's
+2.3.4+c (696,708 bytes) is known to run; the flash bank ends at 0x08100000 (786,432 bytes from the load base).
 
 ### Simulation (Renode)
 
 ```sh
 .venv/bin/python -I sim/mk2_card.py out/sim/mk2_sd.img       # test card: one preset, Sample / Clip / Slicer / Granular
-cp out/fidelity+pages+sound+reverb+fixes+cave/BITBOXMK2.bin out/mk2/
+cp out/fidelity+pages+sound+reverb+fixes+master+cave/BITBOXMK2.bin out/mk2/
 .venv/bin/python -I sim/run.py --image semi --repl mk2.repl --sd out/sim/mk2_sd.img \
     wait 10 shot pads tap 30 210 0.15 wait 0.8 press K1 wait 1 press K1 wait 1 shot params
 ```

@@ -105,7 +105,8 @@ def build(image, sd, actions, repl="micro.repl", bank2=None):
             lines.append(f'python "self.Machine[\'sysbus.audioDma\'].InputFrom(5, \'{os.path.abspath(actions[i + 1])}\')"')
             i += 2
         elif act == "set":                                   # set <id> <value>: settings store (app +0x7fd0) entry
-            lines.append(f'python "import sdhook; sdhook.store_set(self.Machine.SystemBus, 0x24013cb0 + 0x7fd0, {actions[i + 1]}, {actions[i + 2]})"')
+            settings = "0x24015170 + 0x7ed0" if repl == "mk2.repl" else "0x24013cb0 + 0x7fd0"   # MK2: app 0x24015170
+            lines.append(f'python "import sdhook; sdhook.store_set(self.Machine.SystemBus, {settings}, {actions[i + 1]}, {actions[i + 2]})"')
             i += 3
         elif act == "midi":                                  # midi <hex bytes, e.g. 903c64>: into both MIDI ins
             data = bytes.fromhex(actions[i + 1])

@@ -22,7 +22,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "patches"))
 from thumb import BASE, bl_target, symbols  # noqa: E402
 
-IMG = open(os.path.join(ROOT, "out", "fidelity+pages+sound+reverb+fixes+cave", "BITBOXMK2.bin"), "rb").read()
+IMG = open(os.path.join(ROOT, "out", os.environ.get("PK_BUILD", "fidelity+pages+sound+reverb+fixes+master+cave"), "BITBOXMK2.bin"), "rb").read()
 SYM = symbols(os.path.join(ROOT, "out", "cave.elf"))
 
 APP_PADS = 0x24015170 + 0x1840
@@ -169,9 +169,11 @@ check("new knobs registered: Filter 2 (bipolar), Res 2, Drive",
                 (0x1C2, 8, "Drive:", 0, 1000, "pkdrive"), (0x1C3, 1, "Shift ms:", -100, 100, "pkshift"),
                 (0x1C6, 1, "Stretch %:", -100, 100, "pkstretch"),
                 (0x1C8, 8, "FX3 Send:", 0, 1000, "fx3send"), (0x183, 1, "Loop Fade:", 0, 50, "pkloopfade")], knobs)
-# MK2 build A: the master section (master.c) is not ported yet (src/mk2_later.c registers nothing)
-check("MK2: no master section parameters registered yet (master.c not ported)",
-      not knobs[7:] and not any(i in lists for i in (0x19D, 0x19F, 0x17D, 0x17F, 0x1A7)), knobs[7:])
+check("master section knobs registered after them (master.c; Dist Type is a list; MK2 label 'Dist Lvl:')",
+      [k[0] for k in knobs[7:]] == [0x1A1, 0x1A2, 0x1A3, 0x1A5, 0x1A6, 0x19E, 0x1A8, 0x1A9, 0x1AB, 0x1AC]
+      and knobs[-1][2] == "Dist Lvl:"
+      and [lists.get(i, ("",))[0] for i in (0x19D, 0x19F, 0x17D, 0x17F, 0x1A7)]
+      == ["Comp Type:", "Ratio:", "Attack:", "Release:", "Dist Type:"], knobs[7:])
 pl = lists.get(0x1C4)
 pl_names = [e.cstr(e.r32(pl[1] + 4 * k)) for k in range(pl[2])] if pl else []
 check("Play Len list: Full, 1/4 .. 32 bars in quarter bars, xml pkplaylen",

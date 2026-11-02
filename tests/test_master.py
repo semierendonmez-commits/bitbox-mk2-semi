@@ -1,8 +1,9 @@
+# ported to the bitbox MK2 2.3.4 by tools/port_mk2.py
 """Unicorn tests for patches/master.py (src/master.c, src/master_thunk.S): the settings store with the new entries (real
-init 0x08089e04), the Tools pages (left / right arrow, Tools button, page list), the compressor's settings on its object,
+init 0x08089cbc), the MK2 Tools tabs (Comp, Cmp2, Dist; SSL swap), the compressor's settings on its object,
 and the master distortion on a real bus buffer.
 
-  python3 -I tests/test_master.py   (after ./build.sh and patch.py fidelity pages padpages sound reverb fx3 master cave)
+  python3 -I tests/test_master.py   (after ./build.sh and patch.py fidelity pages sound reverb fixes master cave)
 """
 import math
 import os
@@ -16,10 +17,9 @@ exec(compile(_src[:_src.index("\ne = Emu()\n")], "test_fidelity.py (header)", "e
 from unicorn.arm_const import UC_ARM_REG_R1, UC_ARM_REG_R2, UC_ARM_REG_R3  # noqa: E402
 
 e = Emu()
-e.stub(0x08042DFC, lambda uc: uc.reg_write(UC_ARM_REG_R0, e.new(uc.reg_read(UC_ARM_REG_R0))))   # DTCM allocator
-APP = 0x24013CB0
-SET = APP + 0x7FD0
-MS = 0x2406D400
+e.stub(0x08043B88, lambda uc: uc.reg_write(UC_ARM_REG_R0, e.new(uc.reg_read(UC_ARM_REG_R0))))   # DTCM allocator
+APP = 0x24015170
+SET = APP + 0x7ED0          # MK2 settings store (micro +0x7fd0); APP is ported below
 COMP = {"thresh": 0x1A1, "ratio": 0x1A2, "attack": 0x1A3, "release": 0x1A5, "gain": 0x1A6}
 DIST = {"type": 0x1A7, "drive": 0x1A8, "tone": 0x1A9, "mix": 0x1AB, "level": 0x1AC}
 
@@ -39,14 +39,14 @@ def store_ids(store):
     return cnt, out
 
 def get(pid):
-    return struct.unpack("<i", struct.pack("<I", e.call(0x080894D0, SET, pid)))[0]
+    return struct.unpack("<i", struct.pack("<I", e.call(0x08089388, SET, pid)))[0]
 
 def put(pid, v):
-    e.call(0x080894FA, SET, pid, v & 0xFFFFFFFF)
+    e.call(0x080893B2, SET, pid, v & 0xFFFFFFFF)
 
-# --- settings store: the real init (0x08089e04) with the hook at its last add
-e.stub(0x080442F6, lambda uc: None)                       # its last call (not about the store)
-e.call(0x08089E04, SET)
+# --- settings store: the real init (0x08089cbc) with the hook at its last add
+e.stub(0x08045012, lambda uc: None)                       # its last call (not about the store)
+e.call(0x08089CBC, SET)
 cnt, ids = store_ids(SET)
 check("settings store: 36 stock entries + 15 new (51 of 64), 0x17b (the hooked add) still there",
       cnt == 51 and 0x17B in ids and 0x96 in ids, cnt)
@@ -56,88 +56,56 @@ check("new entries with defaults: compressor = stock (-4 dB, 4:1, 10 ms, 250 ms,
       and [ids.get(DIST[k]) for k in ("type", "drive", "tone", "mix", "level")] == [0, 12000, 1000, 1000, 0],
       {hex(k): v for k, v in ids.items() if k >= 0x1A0})
 
-# --- pages: Tools screen 0x25, arrows, Tools button, the page list
-screens = []
-def _screen(uc):
-    a = uc.reg_read(UC_ARM_REG_R0)
-    screens.append(uc.reg_read(UC_ARM_REG_R1))
-    uc.mem_write(a + 0x7FE5, bytes(uc.mem_read(a + 0x7FE4, 1)))          # like the stock tail: previous = current
-    uc.mem_write(a + 0x7FE4, bytes([uc.reg_read(UC_ARM_REG_R1)]))
-e.stub(0x0808EEDC, _screen)
-w8(APP + 0x7FE4, 0x25)
-w8(APP + 0x7FE5, 0x02)
-r = e.call(SYM["master_left"], APP)
-check("left arrow on Tools: Compressor page (screen 0x25 again), back target kept (previous screen 2)",
-      r == 1 and r8(MS + 4) == 1 and screens == [0x25] and r8(APP + 0x7FE5) == 2, (r, r8(MS + 4), screens))
+# --- MK2 Tools tabs (patches/master.py): labels and ids as data, the SSL swap in master_tools_page (real builder)
+LABELS, IDS = 0x080C7EA4, 0x080C7EBC   # [mk2]
+labels = [e.cstr(e.r32(LABELS + 4 * k)) for k in range(6)]
+check("Tools tab labels: Main, Rec, MIDI, Comp, Cmp2, Dist", labels == ["Main", "Rec", "MIDI", "Comp", "Cmp2", "Dist"], labels)
+tab_ids = [list(struct.unpack_from("<4H", IMG, IDS + 16 * t - 0x08040000)) for t in range(6)]
+check("tabs 3..5: Comp [Type, Threshold, Ratio, Mix], Cmp2 [Attack, Release, Gain, Dist Level], "
+      "Dist [Type, Drive, Tone, Mix]",
+      tab_ids[3:] == [[0x19D, 0x1A1, 0x1A2, 0x19E], [0x1A3, 0x1A5, 0x1A6, 0x1AC], [0x1A7, 0x1A8, 0x1A9, 0x1AB]], tab_ids)
+check("stock tabs unchanged", tab_ids[:3] == [[0x61, 0x78, 0x9C, 0x96], [0x7F, 0x17B, 0xC2, 0], [0x59, 0x5A, 0xB5, 0xC3]])
 
-msg = e.new(0x18)
-e.mu.mem_write(msg + 4, struct.pack("<H", 0x40))
-lst = e.new(4 + 12 * 0x30)
-e.w32(lst, 3)                                              # the stock page's entries, replaced
-r = e.call(SYM["master_page"], APP, msg, lst)
-n = e.r32(lst)
-entries = [(e.r16(lst + 4 + 12 * k), struct.unpack("<i", e.mu.mem_read(lst + 0xC + 12 * k, 4))[0]) for k in range(n)]
-check("Compressor page (Stock): Compressor, Comp Type, Threshold, Ratio, Attack, Release, Gain, Mix with their values",
-      r == 1 and entries == [(0x96, ids[0x96]), (0x19D, 0), (0x1A1, -4000), (0x1A2, 4), (0x1A3, 10), (0x1A5, 250),
-                             (0x1A6, -4000), (0x19E, 1000)], entries)
-check("SSL defaults: mix glue 2:1 (0), attack 30 ms (5), release Auto (4)",
-      (ids.get(0x19F), ids.get(0x17D), ids.get(0x17F)) == (0, 5, 4), (ids.get(0x19F), ids.get(0x17D), ids.get(0x17F)))
-put(0x19D, 1)
-e.w32(lst, 0)
-e.call(SYM["master_page"], APP, msg, lst)
-check("Compressor page (SSL): Comp Type, Threshold, SSL Ratio / Attack / Release switches, Gain, Mix",
-      [e.r16(lst + 4 + 12 * k) for k in range(e.r32(lst))] == [0x96, 0x19D, 0x1A1, 0x19F, 0x17D, 0x17F, 0x1A6, 0x19E])
-# knob hook: Comp Type changed on the Compressor page -> page rebuilt; other knobs / pages: just the stock handler
-knobs = []
-e.stub(0x0807D358, lambda uc: knobs.append((uc.reg_read(UC_ARM_REG_R2), uc.reg_read(UC_ARM_REG_R3))))
-screens.clear()
-e.call(SYM["master_knob"], APP, msg, 0x19D, 0, stack=(0,))
-type_rebuild = screens == [0x25] and r8(MS + 4) == 1
-screens.clear()
-e.call(SYM["master_knob"], APP, msg, 0x1A1, (-1000) & 0xFFFFFFFF, stack=(0,))
-check("knob hook: stock handler always; Comp Type change on the Compressor page rebuilds it (screen 0x25), Threshold not",
-      type_rebuild and not screens and knobs == [(0x19D, 0), (0x1A1, (-1000) & 0xFFFFFFFF)], (knobs, screens))
+def tools_tab(tab):
+    msg = e.new(8)
+    e.mu.mem_write(msg + 4, struct.pack("<H", 0x40))
+    out = e.new(0x80)
+    e.call(SYM["master_tools_page"], APP, msg, out, tab)
+    return list(struct.unpack("<8H", e.mu.mem_read(out + 2, 16)))[:4], list(struct.unpack("<8i", e.mu.mem_read(out + 0x14, 32)))[:4]
+
 put(0x19D, 0)
-
-screens.clear()
-e.call(SYM["master_right"], APP)
-check("right arrow on the Compressor page: settings page", r8(MS + 4) == 0 and screens == [0x25])
-e.w32(lst, 3)
-check("settings page: stock list kept (master_page 0)", e.call(SYM["master_page"], APP, msg, lst) == 0 and e.r32(lst) == 3)
-e.call(SYM["master_right"], APP)
-e.w32(lst, 0)
-e.call(SYM["master_page"], APP, msg, lst)
-check("right arrow on settings: Distortion page (Dist Type, Drive, Tone, Mix, Level)",
-      r8(MS + 4) == 2 and [e.r16(lst + 4 + 12 * k) for k in range(e.r32(lst))] == [0x1A7, 0x1A8, 0x1A9, 0x1AB, 0x1AC])
-e.call(SYM["master_left"], APP)
-check("left arrow on the Distortion page: settings page", r8(MS + 4) == 0)
-e.call(SYM["master_right"], APP)
-e.call(SYM["tools_btn"])
-check("Tools button: settings page first (mode reset); thunk keeps the stock movw r3, #0x7fe4",
-      r8(MS + 4) == 0 and e.mu.reg_read(UC_ARM_REG_R3) == 0x7FE4)
-w8(APP + 0x7FE4, 0x30)
-screens.clear()
-check("arrows on other screens: not taken", e.call(SYM["master_left"], APP) == 0 and not screens)
-e.mu.mem_write(msg + 4, struct.pack("<H", 0x310))
-w8(MS + 4, 1)
-check("other pages (e.g. FX cell 0x310) untouched while the Compressor page is set",
-      e.call(SYM["master_page"], APP, msg, lst) == 0)
-w8(MS + 4, 0)
-check("right arrow table: entry for screen 0x25 -> tools_right (Thumb)",
-      struct.unpack_from("<I", IMG, 0x08083800 + 4 * (0x25 - 2) - 0x08040000)[0] == SYM["tools_right"] | 1)
+ids3, vals3 = tools_tab(3)
+ids4, _ = tools_tab(4)
+check("Stock: Comp tab shows Ratio (0x1a2) with its value, Cmp2 Attack / Release ms",
+      ids3 == [0x19D, 0x1A1, 0x1A2, 0x19E] and vals3[2] == get(0x1A2) and ids4[:2] == [0x1A3, 0x1A5], (ids3, vals3, ids4))
+put(0x19D, 1)
+ids3, vals3 = tools_tab(3)
+ids4, vals4 = tools_tab(4)
+check("SSL: Comp tab shows the ratio switch (0x19f), Cmp2 the attack / release switches (0x17d / 0x17f) with values",
+      ids3 == [0x19D, 0x1A1, 0x19F, 0x19E] and ids4[:2] == [0x17D, 0x17F] and vals3[2] == get(0x19F)
+      and vals4[:2] == [get(0x17D), get(0x17F)], (ids3, vals3, ids4, vals4))
+check("SSL defaults: mix glue 2:1 (0), attack 30 ms (5), release Auto (4)", [get(0x19F), get(0x17D), get(0x17F)] == [0, 5, 4])
+msg = e.new(8)
+e.mu.mem_write(msg + 4, struct.pack("<H", 0x140))
+out = e.new(0x80)
+e.call(SYM["master_tools_page"], APP, msg, out, 3)
+check("other message codes pass through untouched (no swap)", 0x19F not in struct.unpack("<8H", e.mu.mem_read(out + 2, 16)))
+put(0x19D, 0)
+check("thunk site 0x08098190 is a BL to master_dist_thunk", bl_target(IMG[0x08098190 - 0x08040000:0x08098194 - 0x08040000],  # [mk2]
+      0x08098190) == SYM["master_dist_thunk"] & ~1)  # [mk2]
 
 # --- compressor: engine with bus 0, the object (bus index +0x1e = 0, no next node)
 N = 128
 engine = e.new(0x16000)
 bus0 = engine + 0x150E4
-e.call(0x080A310C, bus0, N)
+e.call(0x080A44B4, bus0, N)
 comp = e.new(0x700)
 
 def fill(values):
-    e.call(0x080A31D4, bus0)
-    e.call(0x080A31C8, bus0, N)
+    e.call(0x080A457C, bus0)
+    e.call(0x080A4570, bus0, N)
     il, ir = e.new(4), e.new(4)
-    e.call(0x080A32D4, bus0, il, ir)
+    e.call(0x080A467C, bus0, il, ir)
     e.wf(e.r32(il), values)
     e.wf(e.r32(ir), values)
 
@@ -152,7 +120,7 @@ def _comp(uc):                                             # stock DSP stub: rec
                  struct.unpack("<I", uc.mem_read(c + 0x44C, 4))[0]))
     for off in (8, 0xC):
         uc.mem_write(struct.unpack("<I", uc.mem_read(bus0 + off, 4))[0], b"\0" * 4 * N)
-e.stub(0x080B9B04, _comp)
+e.stub(0x080BA43C, _comp)
 put(COMP["thresh"], -18000)
 put(COMP["ratio"], 6)
 put(COMP["attack"], 30)
@@ -175,7 +143,7 @@ put(0x19E, 1000)
 # --- SSL type: our DSP on bus 0, the stock DSP not called
 put(0x19D, 1)
 seen.clear()
-e.w32(0x2406D580, 0)                                       # SSL state: fresh
+e.w32(0x2406D180, 0)                                       # SSL state: fresh
 def ssl_run(gen, blocks):
     out = []
     for b in range(blocks):
@@ -194,7 +162,7 @@ def steady_reduction(ratio_idx, att=2, rel=0, thr=-20000, amp=0.5):
     put(0x19F, ratio_idx)
     put(0x17D, att)
     put(0x17F, rel)
-    e.w32(0x2406D580, 0)
+    e.w32(0x2406D180, 0)
     out = ssl_run(sine(amp), 300)                          # 0.8 s
     return db(max(abs(x) for x in out[-4800:])) - db(amp)
 red = [steady_reduction(i) for i in (0, 1, 2)]
@@ -207,7 +175,7 @@ def env_after(att_idx, ms):                                # gain reduction (dB)
     put(0x17D, att_idx)
     put(0x17F, 0)
     put(0x19F, 2)
-    e.w32(0x2406D580, 0)
+    e.w32(0x2406D180, 0)
     out = ssl_run(sine(0.5), (ms * 48 + N - 1) // N)
     seg = out[-480:]
     return db(max(abs(x) for x in seg)) - db(0.5)
@@ -218,7 +186,7 @@ def recovery(burst_s, rel_idx):                            # reduction 150 ms af
     put(0x17D, 2)
     put(0x17F, rel_idx)
     put(0x19F, 2)
-    e.w32(0x2406D580, 0)
+    e.w32(0x2406D180, 0)
     nb = int(burst_s * 48000 / N)
     out = ssl_run(lambda k: 0.5 * math.sin(2 * math.pi * 1000 * k / 48000) if k < nb * N else
                   0.01 * math.sin(2 * math.pi * 1000 * k / 48000), nb + 56)
@@ -240,8 +208,8 @@ e.call(SYM["master_comp"], comp, engine)
 e.w32(comp + 8, 0)
 check("SSL: the next node (object +8, vtable +0xc) is called like the stock DSP does", child_calls == [(child, engine)],
       child_calls)
-e.call(0x080A31D4, bus0)
-e.call(0x080A31C8, bus0, N)
+e.call(0x080A457C, bus0)
+e.call(0x080A4570, bus0, N)
 e.mu.mem_write(bus0 + 0x10, b"\1")
 e.call(SYM["master_comp"], comp, engine)
 check("SSL: silent bus stays silent (flag untouched)", e.mu.mem_read(bus0 + 0x10, 1)[0] == 1)
@@ -251,16 +219,16 @@ put(COMP["gain"], -4000)
 
 # --- distortion on bus 0
 bus = e.new(20)
-e.call(0x080A310C, bus, N)
+e.call(0x080A44B4, bus, N)
 def run(block_fn, blocks, **params):
     for k, v in params.items():
         put(DIST[k], v)
     outl, outr = [], []
     for b in range(blocks):
-        e.call(0x080A31D4, bus)
-        e.call(0x080A31C8, bus, N)
+        e.call(0x080A457C, bus)
+        e.call(0x080A4570, bus, N)
         il, ir = e.new(4), e.new(4)
-        e.call(0x080A32D4, bus, il, ir)
+        e.call(0x080A467C, bus, il, ir)
         xl, xr = block_fn(b)
         e.wf(e.r32(il), xl)
         e.wf(e.r32(ir), xr)
@@ -287,19 +255,19 @@ src = sine(1000, 0.5)
 L0, _ = run(src, 8, type=0, drive=12000, tone=1000, mix=1000, level=0)
 check("Off: bus 0 unchanged", all(abs(a - b) < 1e-6 for a, b in zip(L0, sum((src(b)[0] for b in range(8)), []))))
 
-e.w32(0x2406A800, 0)                                       # fresh state
+e.w32(0x2406B800, 0)                                       # fresh state
 L, R = run(src, 12, type=1, drive=0, tone=1000, mix=0, level=0)
 ref = sum((src(b)[0] for b in range(12)), [])
 check("Mix 0: the dry signal, delayed by the filters' 15 samples (aligned with the wet path)",
       all(abs(L[k] - ref[k - 15]) < 1e-5 for k in range(15, len(L))), max(abs(L[k] - ref[k - 15]) for k in range(15, len(L))))
 
 for name, t in (("Soft", 1), ("Hard", 2), ("Fold", 3), ("Tube", 4)):
-    e.w32(0x2406A800, 0)
+    e.w32(0x2406B800, 0)
     L, R = run(sine(1000, 0.25), 20, type=t, drive=0, tone=1000, mix=1000, level=0)
     s = L[N * 4:]
     h1 = harm(s, 1000, 1)
     lin = abs(h1 - 0.25) < 0.02 if t != 4 else 0.15 < h1 < 0.3
-    e.w32(0x2406A800, 0)
+    e.w32(0x2406B800, 0)
     L, R = run(sine(1000, 0.5), 40, type=t, drive=18000, tone=1000, mix=1000, level=0)
     s = L[N * 24:]                                          # after the DC blocker (Tube) has settled
     h1, h2, h3 = harm(s, 1000, 1), harm(s, 1000, 2), harm(s, 1000, 3)
@@ -311,7 +279,7 @@ for name, t in (("Soft", 1), ("Hard", 2), ("Fold", 3), ("Tube", 4)):
     check(f"{name}: 0 dB drive, -12 dB sine passes ~linearly; 18 dB drive: bounded, odd harmonics, no DC", lin and ok)
 
 # aliasing: 7 kHz at 24 dB drive (hard clip); harmonics above 24 kHz fold back, 2x oversampling must keep them down
-e.w32(0x2406A800, 0)
+e.w32(0x2406B800, 0)
 L, _ = run(sine(7000, 0.5), 30, type=2, drive=24000, tone=1000, mix=1000, level=0)
 s = L[N * 6:]
 f_alias = [abs(48000 - 7000 * 5)]                          # 5th harmonic 35 kHz -> 13 kHz
@@ -322,11 +290,11 @@ check("2x oversampling: the 5th harmonic's alias (13 kHz) at least 20 dB below t
       a_alias < a_fund * 0.1)
 
 # Tone and Level
-e.w32(0x2406A800, 0)
+e.w32(0x2406B800, 0)
 Lo, _ = run(sine(8000, 0.1), 16, type=1, drive=0, tone=1000, mix=1000, level=0)
-e.w32(0x2406A800, 0)
+e.w32(0x2406B800, 0)
 Lt, _ = run(sine(8000, 0.1), 16, type=1, drive=0, tone=300, mix=1000, level=0)
-e.w32(0x2406A800, 0)
+e.w32(0x2406B800, 0)
 Ll, _ = run(sine(1000, 0.1), 16, type=1, drive=0, tone=1000, mix=1000, level=-6000)
 a_o, a_t = harm(Lo[N * 4:], 8000, 1), harm(Lt[N * 4:], 8000, 1)
 a_l = harm(Ll[N * 4:], 1000, 1)

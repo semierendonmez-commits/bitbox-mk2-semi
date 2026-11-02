@@ -1,27 +1,28 @@
+/* ported to the bitbox MK2 2.3.4 by tools/port_mk2.py */
 /*
- * Master section (portkit): the stock compressor's settings and a master distortion, each on a page of its own next to
- * the settings page (Tools screen 0x25: left arrow = Compressor, right arrow = Distortion, back the other way).
+ * Master section (portkit): the stock compressor's settings and a master distortion. bitbox MK2: on three Tools tabs
+ * (Comp, Cmp2, Dist) next to Main / Rec / MIDIIn (the micro used pages behind its arrow keys; see "pages" below).
  *
  * - Compressor: the firmware has a compressor across Out 1/2 (object engine +0xfb38, run by the block driver at
- *   0x08097056 when the On/Off flag engine +0x28cc0 is set, i.e. "Compressor:" 0x96 on the settings page). Only On/Off
+ *   0x080983a8 when the On/Off flag engine +0x28cc0 is set, i.e. "Compressor:" 0x96 on the settings page). Only On/Off
  *   is reachable stock; threshold (+0x428, float dB), ratio (+0x42c, float), makeup (+0x430, float dB), attack (+0x448)
- *   and release (+0x44c, samples, the gain ramp's lengths) are set by its constructor (0x080b9d88: -4 dB, 4:1, -4 dB,
- *   480, 12000) and read raw every block (0x080b9b04; same offsets as bitbox-micro-fw-patch, its guards hold here).
- *   master_comp (hooked at 0x08097056) writes them from the settings store before every block.
- * - Distortion: on bus 0 (Out 1/2) after the FX returns and the master EQ, before the compressor (thunk at 0x08096d1c,
+ *   and release (+0x44c, samples, the gain ramp's lengths) are set by its constructor (0x080ba6c0: -4 dB, 4:1, -4 dB,
+ *   480, 12000) and read raw every block (0x080ba43c; same offsets as bitbox-micro-fw-patch, its guards hold here).
+ *   master_comp (hooked at 0x080983a8) writes them from the settings store before every block.
+ * - Distortion: on bus 0 (Out 1/2) after the FX returns and the master EQ, before the compressor (thunk at 0x08098190,
  *   the compressor flag's load, so it runs whether the compressor is on or not). 2x oversampled (31-tap half-band
- *   up / down), shapers Soft (tanh) / Hard (clip) / Fold (triangle) / Tube (asymmetric tanh, DC blocked; state 0x2406a800), Tone (one-pole
+ *   up / down), shapers Soft (tanh) / Hard (clip) / Fold (triangle) / Tube (asymmetric tanh, DC blocked; state 0x2406b800), Tone (one-pole
  *   low-pass, the stock cutoff curve), Mix (dry delayed by the filters' 15 samples), Level.
  * - Comp Type (0x19d): Stock = the stock DSP above; SSL = an SSL-style bus compressor of ours (ssl_run, end of
  *   file) with the SSL's switch values (ratio 0x19f, attack 0x17d, release 0x17f incl. Auto); threshold and Gain
  *   shared, Mix (0x19e) for both. The Compressor page shows the type's knobs; master_knob (hook at the dispatcher's
- *   knob call 0x0807e884) rebuilds it when the type changes.
- * - Settings: new ids 0x1a1-0x1a3, 0x1a5-0x1a9, 0x1ab, 0x1ac (none of them a constant anywhere in the stock code) in the settings store app +0x7fd0 (init 0x08089e04, capacity 64, 36
- *   stock entries; hooked at its last add 0x08089f78), registered next to Fidelity (filter.c). The engine never sees
+ *   knob call 0x08080c00) rebuilds it when the type changes.
+ * - Settings: new ids 0x1a1-0x1a3, 0x1a5-0x1a9, 0x1ab, 0x1ac (none of them a constant anywhere in the stock code) in the settings store app +0x7ed0 (MK2; micro +0x7fd0) (init 0x08089cbc, capacity 64, 36
+ *   stock entries; hooked at its last add 0x08089e30), registered next to Fidelity (filter.c). The engine never sees
  *   them (ids > 0x17a). Defaults = the stock compressor; distortion Off.
- * - Pages: the page builder 0x08076d8c fills code 0x40 (the settings page, screen 0x25) from a table; clip_page
+ * - Pages: the page builder 0x08078ec8 fills code 0x40 (the settings page, screen 0x25) from a table; clip_page
  *   (clipshift.c, wraps all its callers) asks master_page first, which fills our list while a master page is shown.
- *   The knob handler 0x0807d358 writes code-0x40 knobs straight into app +0x7fd0 (0x0807d3aa), so editing needs nothing.
+ *   The knob handler 0x0807f7bc writes code-0x40 knobs straight into the settings store (micro 0x0807d3aa), so editing needs nothing.
  */
 #include <stdint.h>
 
@@ -36,28 +37,23 @@ typedef void (*register_knob_fn)(void *table, int param, int type, const char *l
 typedef int (*store_get_fn)(const void *store, unsigned param);
 typedef void (*store_add_fn)(void *store, unsigned param, int value);
 typedef void (*list_add_fn)(void *list, unsigned param, int value);
-typedef void (*screen_fn)(void *app, unsigned screen, unsigned a, unsigned b);
 typedef void (*comp_fn)(void *comp, void *engine);
 typedef int (*planes_fn)(void *buf, float **l, float **r);
 typedef int (*frames_fn)(void *buf);
 typedef float (*curve_fn)(float x);
-#define fw_register_list ((register_list_fn)FN(0x08069e7c))
-#define fw_register_knob ((register_knob_fn)FN(0x08069ed4))
-int fast_get(const void *store, unsigned param);       /* fastget.c: 0x080894d0 with a cache */
+#define fw_register_list ((register_list_fn)FN(0x0806a27c))
+#define fw_register_knob ((register_knob_fn)FN(0x0806a2d4))
+int fast_get(const void *store, unsigned param);       /* fastget.c: 0x08089388 with a cache */
 #define fw_store_get fast_get
-#define fw_store_add     ((store_add_fn)FN(0x0808951e))
-#define fw_list_add      ((list_add_fn)FN(0x080836a4))     /* list: +0 count (u32, max 0x2f), entries of 12 bytes */
-#define fw_screen        ((screen_fn)FN(0x0808eedc))
-#define fw_comp          ((comp_fn)FN(0x080b9b04))
-#define fw_planes        ((planes_fn)FN(0x080a3288))
-#define fw_frames        ((frames_fn)FN(0x080a31e0))
-#define fw_cutoff_hz     ((curve_fn)FN(0x080a01bc))        /* knob 0..1 -> Hz (Filter, EQ Freq display type 10) */
+#define fw_store_add     ((store_add_fn)FN(0x080893d6))
+#define fw_list_add      ((list_add_fn)FN(0x080884a4))     /* list: +0 count (u32, max 0x2f), entries of 12 bytes */
+#define fw_comp          ((comp_fn)FN(0x080ba43c))
+#define fw_planes        ((planes_fn)FN(0x080a4630))
+#define fw_frames        ((frames_fn)FN(0x080a4588))
+#define fw_cutoff_hz     ((curve_fn)FN(0x080a1564))        /* knob 0..1 -> Hz (Filter, EQ Freq display type 10) */
 
-#define APP        ((uint8_t *)0x24013cb0u)
-#define SETTINGS   (APP + 0x7fd0u)                          /* settings store (globals: tempo, Compressor, ...) */
-#define SCREEN_ID  0x7fe4u                                  /* app: current screen; +0x7fe5 the previous one */
-#define SCR_TOOLS  0x25                                     /* Tools: the settings page (page code 0x40) */
-#define PAGE_SET   0x40
+#define APP        ((uint8_t *)0x24015170u)
+#define SETTINGS   (APP + 0x7ed0u)                          /* MK2: settings store (micro +0x7fd0; Tools builder 0x08079776) */
 
 #define P_COMP_ON  0x96                                     /* stock "Compressor:" (On/Off, xml globcomp) */
 #define P_C_THRESH 0x1a1
@@ -106,7 +102,7 @@ static const struct pdef pdefs[] = {
     {P_D_DRIVE, 7, "Drive:", 0, 36000, 12000, "pkddrive", 0},
     {P_D_TONE, 10, "Tone:", 0, 1000, 1000, "pkdtone", 0},               /* type 10: Hz, the stock cutoff curve */
     {P_D_MIX, 8, "Mix:", 0, 1000, 1000, "pkdmix", 0},
-    {P_D_LEVEL, 7, "Level:", -24000, 12000, 0, "pkdlevel", 0},
+    {P_D_LEVEL, 7, "Dist Lvl:", -24000, 12000, 0, "pkdlevel", 0},  /* MK2: on the Comp2 tab */
 };
 #define NPDEFS (int)(sizeof pdefs / sizeof pdefs[0])
 
@@ -122,7 +118,7 @@ void master_register(void *table)
     }
 }
 
-/* hook at the settings store init's last add (0x08089f78): that add, then ours with their defaults */
+/* hook at the settings store init's last add (0x08089e30): that add, then ours with their defaults */
 void master_store_add(void *store, unsigned param, int value)
 {
     fw_store_add(store, param, value);
@@ -130,95 +126,56 @@ void master_store_add(void *store, unsigned param, int value)
         fw_store_add(store, pdefs[k].id, pdefs[k].def);
 }
 
-/* --- pages: Tools screen, left / right arrow ----------------------------------------------------------------------- */
-struct mstate {
-    uint32_t magic;
-    uint8_t page;                /* 0 = settings (stock), 1 = Compressor, 2 = Distortion; reset by the Tools button */
-    uint8_t pad[3];
-};
-#define MS ((volatile struct mstate *)0x2406d400u)
-#define MMAGIC 0x4d535452u       /* "MSTR" */
-enum { PG_SET, PG_COMP, PG_DIST };
+/* --- pages (bitbox MK2): three Tools tabs next to Main / Rec / MIDIIn --------------------------------------------------
+ * The MK2 Tools screen is a tab page (builder 0x0807974c, message code 0x40): tab labels at 0x080c7ea4 (6 slots, the
+ * first empty one ends the tab row), 8 ids per tab at 0x080c7ebc + tab * 16, of which the screen shows the first four
+ * (2 x 2, column-wise). patches/master.py fills tabs 3..5 (Comp, Cmp2, Dist) as data. The builder copies the ids and
+ * their values from the settings store; master_tools_page (all its callers) swaps the Stock ratio / attack / release
+ * for the SSL switches while Comp Type is SSL. The tab is rebuilt on every tab change, so Comp Type (tab Comp)
+ * takes effect on the Comp2 tab's knobs the next time it is shown. Editing: the knob handler writes code-0x40 knobs
+ * straight into the settings store (as on the micro), so nothing else is needed.
+ */
+#define TOOLS_CODE 0x40
+#define TAB_COMP   3
+#define TAB_COMP2  4
 
-static const uint16_t comp_page[] = {P_COMP_ON, P_C_TYPE, P_C_THRESH, P_C_RATIO, P_C_ATTACK, P_C_REL, P_C_GAIN, P_C_MIX,
-                                     0};
-static const uint16_t ssl_page[] = {P_COMP_ON, P_C_TYPE, P_C_THRESH, P_S_RATIO, P_S_ATTACK, P_S_REL, P_C_GAIN, P_C_MIX, 0};
-static const uint16_t dist_page[] = {P_D_TYPE, P_D_DRIVE, P_D_TONE, P_D_MIX, P_D_LEVEL, 0};
+typedef int (*tools_fn)(void *app, const void *msg, uint8_t *out, int tab);
+#define fw_tools_page ((tools_fn)FN(0x0807974c))
 
-static unsigned page(void)
+static void swap_id(uint8_t *out, unsigned from, unsigned to)
 {
-    return MS->magic == MMAGIC ? MS->page : PG_SET;
+    for (int k = 0; k < 8; k++) {
+        uint16_t *id = (uint16_t *)(out + 2 + 2 * k);
+        if (*id == from) {
+            *id = (uint16_t)to;
+            *(int32_t *)(out + 0x14 + 4 * k) = fw_store_get(SETTINGS, to);
+        }
+    }
 }
 
-static void show(uint8_t *app, unsigned pg)
+int master_tools_page(void *app, const void *msg, uint8_t *out, int tab)
 {
-    MS->magic = MMAGIC;
-    MS->page = (uint8_t)pg;
-    uint8_t prev = app[SCREEN_ID + 1];                  /* back target: keep what it was before the Tools screen */
-    fw_screen(app, SCR_TOOLS, 0, 0);                    /* rebuilds the page (page code 0x40) */
-    app[SCREEN_ID + 1] = prev;
+    int r = fw_tools_page(app, msg, out, tab);
+    if (*(const uint16_t *)((const uint8_t *)msg + 4) == TOOLS_CODE && (tab == TAB_COMP || tab == TAB_COMP2)
+        && fw_store_get(SETTINGS, P_C_TYPE) == C_SSL) {
+        swap_id(out, P_C_RATIO, P_S_RATIO);
+        swap_id(out, P_C_ATTACK, P_S_ATTACK);
+        swap_id(out, P_C_REL, P_S_REL);
+    }
+    return r;
 }
 
-/* left arrow (padpages_left): settings -> Compressor, Distortion -> settings; 1 if taken */
-int master_left(uint8_t *app)
-{
-    if (app[SCREEN_ID] != SCR_TOOLS)
-        return 0;
-    unsigned pg = page();
-    if (pg == PG_SET)
-        show(app, PG_COMP);
-    else if (pg == PG_DIST)
-        show(app, PG_SET);
-    return 1;
-}
-
-/* right arrow (master_thunk.S, the right arrow's case for screen 0x25): settings -> Distortion, Compressor -> settings */
-void master_right(uint8_t *app)
-{
-    if (app[SCREEN_ID] != SCR_TOOLS)
-        return;
-    unsigned pg = page();
-    if (pg == PG_SET)
-        show(app, PG_DIST);
-    else if (pg == PG_COMP)
-        show(app, PG_SET);
-}
-
-/* Tools button (master_thunk.S): always the settings page first */
-void master_tools(void)
-{
-    if (MS->magic == MMAGIC)
-        MS->page = PG_SET;
-}
-
-/* clip_page (clipshift.c), after the stock builder: the settings page's list replaced while a master page is shown */
+/* clipshift.c's clip_page asks this first on the micro (its settings page is built by the pad page builder); the MK2's
+   Tools page is the tab page above, so nothing to do here. */
 int master_page(void *app, const void *msg, uint8_t *list)
 {
-    unsigned code = *(const uint16_t *)((const uint8_t *)msg + 4) & ~0x100u;
-    unsigned pg = page();
-    if (code != PAGE_SET || pg == PG_SET)
-        return 0;
-    *(volatile uint32_t *)list = 0;
-    const uint16_t *ids = pg == PG_DIST ? dist_page
-                        : fw_store_get((const uint8_t *)app + 0x7fd0u, P_C_TYPE) == C_SSL ? ssl_page : comp_page;
-    for (const uint16_t *p = ids; *p; p++)
-        fw_list_add(list, *p, fw_store_get((const uint8_t *)app + 0x7fd0u, *p));
-    return 1;
+    (void)app;
+    (void)msg;
+    (void)list;
+    return 0;
 }
 
-/* hook at the app dispatcher's call of the knob handler (command 0x6e, 0x0807e884 -> 0x0807d358): that, then, when
-   Comp Type has changed on the Compressor page, the page again (its knobs depend on the type) */
-typedef void (*knob_fn)(void *app, const void *msg, unsigned param, int value, int extra);
-#define fw_knob ((knob_fn)FN(0x0807d358))
-
-void master_knob(uint8_t *app, const void *msg, unsigned param, int value, int extra)
-{
-    fw_knob(app, msg, param, value, extra);
-    if (param == P_C_TYPE && app[SCREEN_ID] == SCR_TOOLS && page() == PG_COMP)
-        show(app, PG_COMP);
-}
-
-/* --- compressor: settings onto the live object, every block (hook at 0x08097056) ----------------------------------- */
+/* --- compressor: settings onto the live object, every block (hook at 0x080983a8) ----------------------------------- */
 #define C_THRESH  0x428
 #define C_RATIO   0x42c
 #define C_MAKEUP  0x430
@@ -226,7 +183,7 @@ void master_knob(uint8_t *app, const void *msg, unsigned param, int value, int e
 #define C_RELEASE 0x44c
 
 typedef void *(*bus_fn)(void *engine, unsigned id);
-#define fw_bus ((bus_fn)FN(0x080a82b8))
+#define fw_bus ((bus_fn)FN(0x080a9498))
 typedef void (*node_fn)(void *node, void *engine);
 
 static void ssl_run(void *bus);
@@ -341,8 +298,8 @@ struct dist {
     float drive, mix, level;     /* smoothed: the last block's values */
     struct dch ch[2];
 };
-#define DS ((struct dist *)0x2406a800u)
-_Static_assert(sizeof(struct dist) <= 0x300, "distortion state must end before 0x2406ab00 (tests/test_ram.py)");
+#define DS ((struct dist *)0x2406b800u)
+_Static_assert(sizeof(struct dist) <= 0x300, "distortion state must end before 0x2406bb00 (tests/test_ram.py)");
 #define DMAGIC 0x44495355u       /* "DISU" (ring layout) */
 
 static float run1(struct dch *c, int type, float in, float drive, float tone_a, int tone_on)
@@ -377,7 +334,7 @@ static float run1(struct dch *c, int type, float in, float drive, float tone_a, 
     return y;
 }
 
-/* master_thunk.S at 0x08096d1c (bus 0 = r4): bus 0 through the distortion */
+/* master_thunk.S at 0x08098190 (bus 0 = r4): bus 0 through the distortion */
 void master_dist(void *bus0)
 {
     struct dist *d = DS;
@@ -452,7 +409,7 @@ static const float ssl_release_s[] = {0.1f, 0.3f, 0.6f, 1.2f};
 #define SSL_AUTO   4
 #define SSL_KNEE   2.0f
 struct sslst { uint32_t magic; float gf, gs; };
-#define SST ((struct sslst *)0x2406d580u)
+#define SST ((struct sslst *)0x2406d180u)
 #define SMAGIC 0x53534c21u       /* "SSL!" */
 
 static inline __attribute__((always_inline)) float log2_fast(float x)
@@ -540,3 +497,10 @@ static void ssl_run(void *bus)
     s->gf = gf;
     s->gs = gs;
 }
+
+/* bitbox MK2: labels of the three new Tools tabs (patches/master.py points the empty label slots here; the builder
+   copies 7 characters) */
+const char tab_midi[] = "MIDI";            /* stock "MIDIIn" no longer fits with six tabs */
+const char tab_comp[] = "Comp";
+const char tab_comp2[] = "Cmp2";
+const char tab_dist[] = "Dist";

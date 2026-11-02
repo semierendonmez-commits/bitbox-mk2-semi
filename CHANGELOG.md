@@ -4,6 +4,14 @@
 
 Builds for the **bitbox MK2** on top of the stock firmware **2.3.4**, named `2.3.4-s<build>`.
 
+### 2.3.4-sC (2026-11-02)
+
+- **Master section** from portkit (src/master.c): the stock master compressor's settings with Comp Type Stock / SSL
+  and Mix, and a master distortion (Soft / Hard / Fold / Tube, 2x oversampled). MK2 placement: three new Tools tabs
+  **Comp** (Type, Threshold, Ratio, Mix), **Cmp2** (Attack, Release, Gain, Dist Lvl), **Dist** (Type, Drive, Tone,
+  Mix); "MIDIIn" shortened to "MIDI" so six tabs fit. SSL swaps the ratio / attack / release knobs for its switches
+  (shown on the next tab change). Data-only tabs (the Tools tab builder takes labels and ids from tables).
+
 ### 2.3.4-sB (2026-11-02)
 
 - **Fix: Slicer / Clip "Poly Mode: Mono" not honoured.** The engine took the mono flag from the Sample pads' Poly Mode

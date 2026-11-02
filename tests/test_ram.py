@@ -18,7 +18,7 @@ FREE_LO, FREE_HI = 0x2406AD98, 0x24070DC0          # initial SP .. first firmwar
 
 REGIONS = [                                         # start, size, owner (micro address in portkit)
     (0x2406B000, 0x800, "fastget.c parameter cache (256 x 8)  [micro 0x2406a000]"),
-    (0x2406B800, 0x300, "master.c distortion state  [0x2406a800] (not built yet)"),
+    (0x2406B800, 0x300, "master.c distortion state  [0x2406a800]"),
     (0x2406BB00, 0x20, "recmon.c monitor buffer struct  [0x2406ab00] (not built yet)"),
     (0x2406BD00, 0x10, "PARK  [0x2406c100]"),
     (0x2406BD80, 0x40, "clipshift.c diagnostics  [0x2406c180]"),
@@ -28,9 +28,9 @@ REGIONS = [                                         # start, size, owner (micro 
     (0x2406CC00, 0x100, "reverb.c RS1 (FX2)  [0x2406d000]"),
     (0x2406CD00, 0x100, "reverb.c RS2 (FX3)  [0x2406d100]"),
     (0x2406CE00, 0x100, "fx3.c state  [0x2406d200] (not built yet)"),
-    (0x2406D000, 0x10, "master.c page state  [0x2406d400] (not built yet)"),
-    (0x2406D180, 0x10, "master.c SSL state  [0x2406d580] (not built yet)"),
-    (0x2406E000, 0x1000, "master.c Mix dry copy / recmon.c monitor signal (2 x 512 floats) (not built yet)"),
+    (0x2406D000, 0x10, "master.c page state  [0x2406d400] (micro only, unused on the MK2)"),
+    (0x2406D180, 0x10, "master.c SSL state  [0x2406d580]"),
+    (0x2406E000, 0x1000, "master.c Mix dry copy / recmon.c monitor signal (2 x 512 floats)"),
 ]
 
 failures = 0
