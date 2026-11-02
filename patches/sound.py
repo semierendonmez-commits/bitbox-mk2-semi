@@ -68,6 +68,7 @@ NEW = [P_DRIVE, P_FILT2, P_RES2]
 
 # play length: the segment-count loads before "next segment < count" in the clip voice 0x080b6bd0 (pad in r6)
 THUNKS = [
+    (0x080B5AAA, "07f085f8", "slicer_len_thunk"),   # slice voice start, Sync On: duration -> int; Sync Grid
     (0x080B7056, "d6e99012", "clip_segments_thunk"),
     (0x080B7242, "d6e99012", "clip_segments_thunk"),
     # stretch, live at every segment start (0x080b5a34): file position = index x length x speed; last-segment test
@@ -94,6 +95,8 @@ POS = [0x6F, 0xB4, 0x2A, 0x76]
 # indicator like Start / Length if the firmware lets them be modulated. Stock shows the sends only as bars on the FX
 # screen (forum wish: "mix % per cell"). Pan is already on the Conf list, with modulation.
 P_FX1, P_FX2, P_FX3 = 0xBB, 0xBC, 0x1C8
+P_SGRID = 0x1B6
+SLICER_TABLES = [TABLES["slicer_a"], TABLES["slicer_b"]]
 
 
 def sends_patch(table, page):
@@ -102,6 +105,11 @@ def sends_patch(table, page):
     n = ids.index(0)
     if table in CLIP_TABLES and page == 1:
         n += 5                                       # after the clip tools (Shift .. Loop Fade), patched below
+    if table in SLICER_TABLES and page == 1:         # Sync Grid (slicer.c) right after Sync (0xd5)
+        k = ids.index(0xD5) + 1
+        tail = ids[k:n]
+        return (at + 2 * k, struct.pack(f"<{len(tail) + 4}H", *tail, 0, 0, 0, 0),
+                struct.pack(f"<{len(tail) + 5}H", P_SGRID, *tail, P_FX1, P_FX2, P_FX3, 0)[:2 * (len(tail) + 4)])
     return (at + 2 * n, bytes(8), struct.pack("<4H", P_FX1, P_FX2, P_FX3, 0))
 
 

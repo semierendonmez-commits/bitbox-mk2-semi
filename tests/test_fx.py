@@ -246,5 +246,23 @@ if "fx3_set_cell" in SYM:
           touch(0x100, 0x310)[0] == 0x310 and touch(0x310, 0x310) == (0x330, 0x330) and touch(0x330, 0x330) == (0x310, 0x310)
           and touch(0x310, 0x300)[0] == 0x300)
 
+# --- Slicer Sync Grid (slicer.c): the duration rounded to whole grid steps at the transport's tempo
+if "slicer_len" in SYM:
+    tr = e.new(0x40)
+    e.mu.mem_write(tr + 0x18, struct.pack("<f", 120.0))
+    padobj = e.new(0x300)
+    grid = {"g": 0}
+    e.stub(SYM["pad_setting"] & ~1, lambda uc: uc.reg_write(UC_ARM_REG_R0, grid["g"] if uc.reg_read(UC_ARM_REG_R1) == 0x1B6 else 0))
+    def slen(x, g):
+        grid["g"] = g
+        lo, hi = struct.unpack("<II", struct.pack("<d", x))
+        return struct.unpack("<i", struct.pack("<I", e.call(SYM["slicer_len"], lo, hi, padobj, tr)))[0]
+    check("Sync Grid Free: as __aeabi_d2iz (13000.7 -> 13000); 1/16 at 120 BPM: 13000 -> 12000 (2 x 6000), "
+          "2000 -> 6000 (at least one step); 1 bar: 100000 -> 96000",
+          slen(13000.7, 0) == 13000 and slen(13000.7, 5) == 12000 and slen(2000.0, 5) == 6000 and slen(100000.0, 1) == 96000,
+          (slen(13000.7, 0), slen(13000.7, 5), slen(2000.0, 5), slen(100000.0, 1)))
+    del e.stubs[SYM["pad_setting"] & ~1]
+    check("slice voice start: bl at 0x080b5aaa -> slicer_len_thunk", bl_at(0x080B5AAA) == SYM["slicer_len_thunk"] & ~1)
+
 print(f"\n{'FAILED: ' + str(failures) if failures else 'all passed'}")
 sys.exit(1 if failures else 0)

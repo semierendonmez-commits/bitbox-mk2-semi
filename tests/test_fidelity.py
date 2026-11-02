@@ -473,7 +473,7 @@ set_param(0x1C3, 0)
 clip_loop = [struct.unpack_from("<9H", IMG, t + 1 * 36 * 2 - 0x08040000) for t in (0x080C7BD4, 0x080C7D3C)]   # MK2 Pos list
 check("Clip loop page: Loop Mode, Beat Count, Quant Size, Sync, Shift, Play Len, Stretch, Stretch Mode, Loop Fade",
       all(p == (0x6F, 0xB4, 0x2A, 0x76, 0x1C3, 0x1C4, 0x1C6, 0x1C7, 0x183) for p in clip_loop), clip_loop)
-check("full pad record (type 3): 67 entries, capacity raised to 72", cnt3 == 67 and cap3 == 72 and ids3.get(0x1C8) == 0,
+check("full pad record (type 3): 68 entries (+ Sync Grid), capacity raised to 72", cnt3 == 68 and ids3.get(0x1B6) == 0 and cap3 == 72 and ids3.get(0x1C8) == 0,
       (cnt3, cap3))
 
 

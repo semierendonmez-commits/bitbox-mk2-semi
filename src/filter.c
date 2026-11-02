@@ -111,6 +111,7 @@ typedef void (*register_knob_fn)(void *table, int param, int type, const char *l
 #define fw_register_knob ((register_knob_fn)FN(0x0806a2d4))  /* type 8: 0..max, type 9: bipolar (Filter 0xaa) */
 
 void master_register(void *table);
+void slicer_register(void *table);
 
 void interp_register(void *table, int param, const char *label, const char *const *names, int count, const char *xml)
 {
@@ -129,6 +130,7 @@ void interp_register(void *table, int param, const char *label, const char *cons
     fw_register_knob(table, P_FX3SEND, 8, "FX3 Send:", 0, 1000, "fx3send");
     fw_register_knob(table, P_LFADE, 1, "Loop Fade:", 0, 50, "pkloopfade");    /* ms, clips (clipshift.c) */
     master_register(table);                                                   /* master.c: compressor, distortion */
+    slicer_register(table);                                                   /* slicer.c: Sync Grid */
 }
 
 /* Pad record init (0x08089400): its two pad blocks add Filter (0xaa) through 0x080893d6 (0x080895b0, 0x080897da);
@@ -149,6 +151,7 @@ void pad_store_add(void *store, unsigned param, int value)
     fw_store_add(store, P_STRETCH, 0);
     fw_store_add(store, P_SMODE, 0);
     fw_store_add(store, P_FX3SEND, 0);
+    fw_store_add(store, 0x1b6, 0);                                            /* slicer.c: Sync Grid (Free) */
     fw_store_add(store, P_LFADE, 0);   /* 67 in the full pad record (58 stock + 9); capacity raised to 72 (sound.py) */
 }
 
