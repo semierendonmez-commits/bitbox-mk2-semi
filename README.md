@@ -1,109 +1,81 @@
-# portkit for the 1010music bitbox micro
+# bitbox-mk2-semi
 
-Community firmware for the **1010music bitbox micro** (firmware 2.3.4): Fidelity / vintage sampler modes and 24 dB
-filters (ported from Justin Joe's [blackbox-mod](https://github.com/j3threejay/blackbox-mod)), plus clip
-time-stretch tools, more reverb types, a third FX send, a master compressor and distortion, and a second page of pads.
-
-**→ [Patch your firmware in the browser](https://kyrillleier-jpg.github.io/portkit-micro/)** · **[Manual with screenshots](docs/manual/README.md)** ([PDF](docs/manual/portkit-micro-manual.pdf)) · **[Changelog](CHANGELOG.md)**
+Community firmware for the **1010music bitbox MK2** (firmware 2.3.4), ported from
+[portkit](https://github.com/kyrillleier-jpg/portkit-micro) (bitbox micro 2.3.4, MIT), which brings Fidelity /
+vintage sampler modes and 24 dB filters from Justin Joe's [blackbox-mod](https://github.com/j3threejay/blackbox-mod).
+The micro and the MK2 run the same 1010music framework at the same load base, so portkit's engine code ports by
+address translation; the UI is placed anew for the MK2's screens and its two keys (HOME, INFO).
 
 > Unofficial. Not affiliated with or supported by 1010music. Running modified firmware is at your own risk and may
-> affect your warranty. Keep your stock `MICRO.BIN` and flash it back before sending a unit in for service.
+> affect your warranty. Keep your stock `BITBOXMK2.bin` and flash it back before sending a unit in for service.
 
-## Install
+## Status: build 2.3.4-sA (first MK2 build)
 
-1. Download the stock firmware **2.3.4** from 1010music and take the `MICRO.BIN` out of the zip.
-2. Open the [patcher page](https://kyrillleier-jpg.github.io/portkit-micro/), drop that `MICRO.BIN` on it and
-   download the patched `MICRO.BIN`. Everything happens in your browser; nothing is uploaded. The page only accepts
-   the unmodified 2.3.4 and checks the result against the tested build.
-3. Copy it to the root of the microSD card.
-4. Hold the **white right arrow** key while powering on to install.
-5. The splash shows **portkit mod** and version **2.3.4-pkZD**.
+**emulation** = verified in the Unicorn tests and the Renode simulation of the MK2, **not yet on a unit**.
+Nothing here is hardware-tested yet.
 
-**Going back:** the same steps with the stock `MICRO.BIN`.
-
-## What you get
-
-How to use each feature, with screenshots: **[docs/manual](docs/manual/README.md)**.
-
-**hardware** = tested on a unit, **emulation** = verified in the test suite and the simulator, not yet on a unit.
-
-| Feature | Where on the unit | Status |
+| Feature | Where on the MK2 | Status |
 |---|---|---|
-| **Fidelity**: Interp list Normal, HighQ, SP1200, SP-12, S950, MPC60, SP Raw, 16k..2k | Sample pads → Interp | hardware |
-| Fidelity also on Clip, Slicer and Granular pads | pad page of those modes | hardware |
-| **24 dB filter**: state-variable filter instead of the pad biquad, clean resonance | pad filter | hardware |
-| **Drive** (before the filters) and **Filter 2** + Res 2 (a second 24 dB filter in series) | main page of every pad mode | hardware |
-| **Clip Shift**: moves the audio against the loop by −100..+100 ms | clip loop page | hardware |
-| **Clip Play Len**: Full or 1/4..32 bars (needs Sync) | clip loop page | hardware |
-| **Clip Stretch**: tempo ±100 % (needs Sync); **Stretch Mode** Auto / Jump / Smooth (Smooth keeps the pitch) | clip loop page | hardware |
-| **Clip Loop Fade**: 0..50 ms fade at the loop seams (against clicks) | clip loop page | hardware |
-| **Sync 1/32**; Play Len / Stretch are hidden when Quant Size / Sync would make them ineffective | clip loop page | hardware |
-| **Reverb types** Plate / Room / Hall / Chamber with 10 settings and Level | Effects → RVB | hardware (levels: hardware) |
-| **FX3**: a third send with a second reverb, on its own FX row | Effects: left arrow = pages, tap RVB again = RVB/FX3; right arrow = FX3 settings, again = master EQ | hardware (row layout: hardware) |
-| **Master compressor page** (threshold, ratio, attack, release, gain) with type **Stock / SSL** and **Mix** | Tools → left arrow | emulation |
-| **Master distortion**: Soft / Hard / Fold / Tube with 2x oversampling; Drive, Tone, Mix, Level | Tools → right arrow | hardware |
-| **Recording**: a pad's FX1 / FX2 / FX3 sends are kept when it is recorded into; the input monitor goes through them | recording to a pad | emulation |
-| **Pads 9–16** as a second page of the pad grid | left arrow on Pads and Effects, top-left field on Mixer, left arrow in the pad picker | hardware (encoder on page 2: hardware) |
-| **CPU load** in the status bar | right end of the status bar | hardware |
+| **Fidelity**: Interp list Normal, HighQ, SP1200, SP-12, S950, MPC60, SP Raw, 16k..2k | pad → INFO → INFO → **Conf** list (Sample, and now also Clip, Slicer, Granular) | emulation |
+| **24 dB filter** (SVF instead of the pad biquad), same Filter / Res dials | Main page | emulation |
+| **Drive**, **Filter 2**, **Res 2** (second 24 dB filter in series) | **LFO** page, right-hand group | emulation |
+| **Clip Shift** (−100..+100 ms), **Play Len**, **Stretch %** (needs Sync), **Str Mode** Auto / Jump / Smooth (Smooth keeps the pitch), **Loop Fade** | Clip pad → **Pos** list, after Sync | emulation |
+| **Sync 1/32**; Play Len / Stretch hidden while Quant / Sync make them ineffective | Pos list | emulation |
+| **Reverb types** Plate / Room / Hall / Chamber with ten settings and **Level** | FX2 → INFO (Type, Level shown on Plate) | emulation (Plate page) |
+| **CPU load** after the free-memory text | status bar (e.g. `243M  34%`) | emulation (the simulator's load value is not meaningful) |
+| Splash / Menu version **semi mod 2.3.4-sA** | boot, Menu lower right | emulation |
 
-Not ported: the Blackbox mod's machine drive (the micro has no saturation parameter to drive it from).
+Not ported yet: FX3 (third send), master compressor / distortion, recording sends / monitor (portkit reaches their
+pages with the micro's arrow keys; the MK2 needs its own placement), pads 9–16 (not needed: the MK2 has 16 pads).
 
-**Presets:** values are stored by parameter name. Presets from the stock firmware load as before; the new controls
-start at their defaults.
+**Presets:** values are stored by parameter name (`pkdrive`, `pkshift`, ...). Stock presets load as before; the new
+controls start at their defaults. The parameter table and ids are identical on micro and MK2 (240 registrations,
+`tools/emu_params_mk2.py`), so portkit's ids are free here too.
 
 ## Build from source
 
-Only needed if you want to change something. You need macOS or Linux, Python 3, `arm-none-eabi-gcc` (macOS:
-`brew install --cask gcc-arm-embedded`, Debian/Ubuntu: `sudo apt install gcc-arm-none-eabi`) and the stock 2.3.4
-`MICRO.BIN` in `firmware/` (SHA-256 `54ecc3e5c09b9aed7ad8e2d9d1c9f8ee63e06a8351c857304c3ff21fcb9c4365`).
-Optional, for the simulation: [Renode](https://renode.io).
+Linux or macOS, Python 3, `arm-none-eabi-gcc`, the stock MK2 2.3.4 `BITBOXMK2.bin` in `firmware/` (SHA-256
+`35ab7995ad0eca8484f3b28bc76389f10b2037dbb21a4a394e950d9329073e86`, from 1010music's download page). For address
+work also the micro 2.3.4 `MICRO.BIN` (SHA-256 `54ecc3e5…4365`). Optional: [Renode](https://renode.io) 1.16+.
 
 ```sh
-./setup.sh            # reference repos, Python venv (capstone, unicorn), firmware hash check
-./build.sh            # src/ -> out/cave.elf, out/cave.bin
-.venv/bin/python -I patch.py fidelity pages padpages sound reverb fx3 master cave
-                      # -> out/fidelity+pages+padpages+sound+reverb+fx3+master+cave/MICRO.BIN
-.venv/bin/python -I tests/test_fidelity.py     # Unicorn tests on the patched image
-.venv/bin/python -I tests/test_padpages.py
+./setup.sh
+./build.sh                                                   # src/ -> out/cave.elf, out/cave.bin
+.venv/bin/python -I patch.py fidelity pages sound reverb cave
+                      # -> out/fidelity+pages+sound+reverb+cave/BITBOXMK2.bin
+.venv/bin/python -I tests/test_fidelity.py                   # Unicorn tests on the patched image
 .venv/bin/python -I tests/test_reverb.py
-.venv/bin/python -I tests/test_fx3.py
-.venv/bin/python -I tests/test_master.py
 .venv/bin/python -I tests/test_ram.py
 ```
 
 `patch.py` only writes an image when every check passes: stock hash, expected stock bytes at every patch site, zero
-repack (applying nothing reproduces stock bit for bit), every change inside a registered range, every redirected call
-lands on a function of ours, and every caller of a replaced function is covered.
+repack, every change inside a registered range, every redirected call lands on a function of ours, every caller of a
+replaced function is hooked. Build sA: 696,340 bytes (cave 21,444 bytes, ends 0x080EA314; the MK2 bootloader's upper
+limit is not known - vwal's 2.3.4+c, 696,708 bytes, runs).
 
-### Updating the browser patcher
+### Simulation (Renode)
 
 ```sh
-.venv/bin/python -I tools/make_web.py            # needs a clean commit
+.venv/bin/python -I sim/mk2_card.py out/sim/mk2_sd.img       # test card: one preset, Sample / Clip / Slicer / Granular
+cp out/fidelity+pages+sound+reverb+cave/BITBOXMK2.bin out/mk2/
+.venv/bin/python -I sim/run.py --image semi --repl mk2.repl --sd out/sim/mk2_sd.img \
+    wait 10 shot pads tap 30 210 0.15 wait 0.8 press K1 wait 1 press K1 wait 1 shot params
 ```
 
-Builds, tests, and writes `docs/index.html` + `docs/patches/*.json`. The patch holds only this project's bytes, no
-1010music firmware: the script fails if any 32-byte run of the stock image turns up in it. The JSON uses
-blackbox-mod's patch format, so its `apply.py` can apply it as well. Commit `docs/` and push; GitHub Pages serves
-the page.
+Keys: `K0` = HOME (PC2), `K1` = INFO (PC3). Touch in screen coordinates (320 x 240, y from the top). The encoder is
+not modelled yet. See `sim/README.md` (portkit's micro notes) and the MK2 notes in `re/symbols-mk2.md`.
 
-## Repository layout
+### Porting more from portkit
 
-| Path | What |
-|---|---|
-| `patch.py`, `patches/` | patcher and patch definitions (sites, expected bytes, detours) |
-| `src/` | C / assembly appended to the image (DSP, UI hooks) |
-| `tests/` | Unicorn tests, CPU cost (`perf.py`), audio renders |
-| `sim/` | Renode simulation of the unit (boot, screenshots, keys, SD card); `sim/README.md` |
-| `tools/` | reverse-engineering helpers, browser patcher template and generator |
-| `docs/` | the browser patcher (GitHub Pages) and `firmware-mod.md`, the general modding workflow behind this project |
-| `re/symbols.md` | addresses, evidence and status of every function used (German) |
-
-Sister project: [portkit-blackbox](https://github.com/kyrillleier-jpg/portkit-blackbox), these features on the
-Blackbox, merged with JOEBOX 1.
+`tools/micro2mk2.py` translates micro addresses (code by instruction windows, data by content, RAM by literals);
+`re/mk2_map.py` is the curated map; `tools/port_mk2.py survey|apply <files>` rewrites a portkit source through it
+(files already ported carry a marker line). Sources without the marker (`src/master.c`, `src/fx3.c`, `src/recmon.c`,
+`src/padpages.c`, their thunks and patch sets) are still portkit's micro versions and are not built.
 
 ## Credits and licence
 
-The Fidelity modes, the 24 dB filter and the BL encoder come from blackbox-mod by Justin Joe (MIT); the filter
-follows Emilie Gillet's stmlib (MIT). See `THIRD_PARTY.md`. portkit's code: MIT, see `LICENSE`. The 1010music
-firmware is not part of this project and not covered by any licence here. Please share the patcher link or the build
-instructions, not patched firmware files.
+Ported from portkit (MIT, portkit contributors); Fidelity modes, the 24 dB filter and the BL encoder from blackbox-mod
+by Justin Joe (MIT); the filter follows Emilie Gillet's stmlib (MIT). See `THIRD_PARTY.md`. This project's code: MIT,
+see `LICENSE`. Feature ideas also from vwal's [bitbox MkII 2.3.4+c patcher](https://vwal.github.io/bitbox-mkii-patcher/)
+(no code taken: that project publishes no source and no licence). The 1010music firmware is not part of this project and
+not covered by any licence here. Please share the build instructions, not patched firmware files.

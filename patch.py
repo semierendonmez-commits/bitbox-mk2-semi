@@ -1,6 +1,6 @@
-"""Apply byte patches to the stock bitbox micro 2.3.4 firmware and write an SD-card-ready MICRO.BIN.
+"""Apply byte patches to the stock bitbox MK2 2.3.4 firmware and write an SD-card-ready BITBOXMK2.bin.
 
-  python3 patch.py fidelity pages padpages sound reverb fx3 cave        (run ./build.sh first)
+  python3 -I patch.py fidelity pages sound reverb cave        (run ./build.sh first)
 
 Each patchset in patches/ is a module defining PATCHES = [(addr, old_bytes, new_bytes), ...]. Every patch verifies the
 stock bytes before writing, so a patch built for the wrong firmware fails loudly. After patching, verify():
@@ -19,8 +19,8 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(ROOT, "patches"))
 from thumb import BASE, STOCK_END, bl_target, symbols  # noqa: E402
 
-STOCK = os.path.join(ROOT, "firmware", "MICRO.BIN")
-STOCK_SHA256 = "54ecc3e5c09b9aed7ad8e2d9d1c9f8ee63e06a8351c857304c3ff21fcb9c4365"
+STOCK = os.path.join(ROOT, "firmware", "BITBOXMK2.bin")
+STOCK_SHA256 = "35ab7995ad0eca8484f3b28bc76389f10b2037dbb21a4a394e950d9329073e86"   # official MK2 2.3.4
 
 
 def load_stock():
@@ -117,7 +117,7 @@ def main(names):
     verify(stock, data, ranges, names)
     out_dir = os.path.join(ROOT, "out", "+".join(names))
     os.makedirs(out_dir, exist_ok=True)
-    out = os.path.join(out_dir, "MICRO.BIN")
+    out = os.path.join(out_dir, "BITBOXMK2.bin")
     open(out, "wb").write(data)
     print(f"wrote {out} ({len(data)} bytes, sha256 {hashlib.sha256(data).hexdigest()})")
 

@@ -1,18 +1,19 @@
+/* ported to the bitbox MK2 2.3.4 by tools/port_mk2.py */
 /*
  * Shift for clip pads (portkit): rotates the clip's audio against its loop by -100 .. +100 ms, so a loop whose first
  * transient sits off the file start lands on the beat. +s: at the downbeat you hear the file s ms in; the last s ms of
  * the loop come from the file start. -s: the downbeat plays the file's last s ms first.
  *
- * Clip voices (class B, 0x080b5aa8) read their sample by absolute frame position through the pad's stream (pad +0x24):
- * 0x080a4500 (one channel plane) and 0x080a44c8 (both planes, streamed files), all from 0x080b55ac; the segment
- * starts prefetch with 0x080a4624 (seek, 0x080b47d2 / 0x080b4b4c). Each read [pos, pos + n) inside the file becomes
+ * Clip voices (class B, 0x080b6bd0) read their sample by absolute frame position through the pad's stream (pad +0x24):
+ * 0x080a58a8 (one channel plane) and 0x080a5870 (both planes, streamed files), all from 0x080b66d4; the segment
+ * starts prefetch with 0x080a59cc (seek, 0x080b58fa / 0x080b5c74). Each read [pos, pos + n) inside the file becomes
  * [(pos + shift) mod frames, ...), split at the file end; reads past the end stay as they were (silence). The seek gets
  * the same mapping. Slicer pads (pad +0x254 set) are left alone. Positions are file frames; 1 ms = 48 frames (files at
  * other rates shift by a little more or less than the shown ms).
  *
  * Play length for clip pads: Full (default, the whole clip) or 1/4 .. 32 bars in quarter-bar steps. Clip voices play
  * segment by segment (re/symbols.md "Abspiellaenge"); when the next segment index reaches the clip's segment count
- * (pad +0x240 + pad +0x244, compared at 0x080b5f2e / 0x080b611a) the clip loops back to segment 0 or stops. With Sync
+ * (pad +0x240 + pad +0x244, compared at 0x080b7056 / 0x080b7242) the clip loops back to segment 0 or stops. With Sync
  * on (pad +0x1f5), a segment is one Sync unit: pad +0x220 = its length in ticks, 960 per beat (Sync list 0x76: 1 bar
  * 3840, 1/2 1920, 1/4 960, 1/8 480, 1/16 240; "Slice" 0xf0000 is the slicer). The count is capped at the play length:
  * quarter bars * 960 / unit, rounded, at least 1, so the length is exact down to the Sync unit (a quarter bar is one
@@ -20,11 +21,11 @@
  *
  * Stretch for clip pads: -100 .. +100 %, speed x 1 / (1 + |p| / 100) below 0 and x (1 + p / 100) above (so -100 %
  * is half, +100 % double speed). Clips play their file at its own rate and keep time by starting each Sync unit
- * (segment k) at file position k x segment length (pad +0x1fc), 0x080b4a68 in the segment start 0x080b490c
+ * (segment k) at file position k x segment length (pad +0x1fc), 0x080b5b90 in the segment start 0x080b5a34
  * (re/symbols.md "Stretch"). Stretch scales that position by the speed, live at every segment start (pitch unchanged,
  * same jumping as when the firmware follows the song tempo), and the clip's segment count by 1 / speed: the loop bound
- * (clip_segments, with Play Len) and the "last segment" test 0x080b49b4. (pkJ-pkL scaled the clip length in the setup
- * 0x080b40fc instead; a synced clip does not re-run that setup on the device.)
+ * (clip_segments, with Play Len) and the "last segment" test 0x080b5adc. (pkJ-pkL scaled the clip length in the setup
+ * 0x080b5224 instead; a synced clip does not re-run that setup on the device.)
  */
 #include <stdint.h>
 
@@ -34,16 +35,16 @@ typedef int (*read1_fn)(void *stream, float *dst, int n, int pos, int ch);
 typedef int (*read2_fn)(void *stream, float *left, float *right, int n, int pos);
 typedef void (*seek_fn)(void *stream, int pos);
 typedef int (*frames_fn)(void *stream);
-#define fw_read1  ((read1_fn)FN(0x080a4500))
-#define fw_read2  ((read2_fn)FN(0x080a44c8))
-#define fw_seek   ((seek_fn)FN(0x080a4624))
-#define fw_frames ((frames_fn)FN(0x080a45ac))   /* frame count; 0x10000000 if the source does not know it */
+#define fw_read1  ((read1_fn)FN(0x080a58a8))
+#define fw_read2  ((read2_fn)FN(0x080a5870))
+#define fw_seek   ((seek_fn)FN(0x080a59cc))
+#define fw_frames ((frames_fn)FN(0x080a5954))   /* frame count; 0x10000000 if the source does not know it */
 
 #define P_SHIFT        0x1c3
 #define P_PLAYLEN      0x1c4      /* list index: 0 = Full, q = q quarter bars (1 .. 128) */
 #define PAD_SEGMENTS   0x240      /* + 0x244: segment count */
 #define P_SMODE        0x1c7      /* Stretch Mode (src/stretch.c): Auto / Jump / Smooth */
-#define P_STRETCH      0x1c6      /* -100 .. 100 %; not 0x1c5: the parameter command 0x0807d358 takes that id itself (0x0807d37e) */
+#define P_STRETCH      0x1c6      /* -100 .. 100 %; not 0x1c5: the parameter command 0x0807f7bc takes that id itself (0x0807f7e2) */
 #define PAD_SYNCED     0x1f5
 #define PAD_UNIT_TICKS 0x220      /* int64 */
 #define TICKS_PER_BEAT 960
@@ -156,7 +157,7 @@ static void loop_fade(const uint8_t *pad, void *stream, float *l, float *r, int 
     }
 }
 
-/* thunks in clipshift_thunk.S pass the pad (r4 of 0x080b55ac / 0x080b4644 / 0x080b490c) as the last argument */
+/* thunks in clipshift_thunk.S pass the pad (r4 of 0x080b66d4 / 0x080b576c / 0x080b5a34) as the last argument */
 static int clip_read1_raw(void *stream, float *dst, int n, int pos, int ch, const uint8_t *pad)
 {
     int total, s = shift_of(pad, stream, &total);
@@ -281,13 +282,13 @@ float clip_stretch_speed(const uint8_t *pad)
     return clip_speed_of(pad);
 }
 
-/* thunk (clip_pos_thunk): `vmul.f32 s16, s15, s16` (segment index x segment length) at 0x080b4a68 */
+/* thunk (clip_pos_thunk): `vmul.f32 s16, s15, s16` (segment index x segment length) at 0x080b5b90 */
 float clip_speed(const uint8_t *pad)
 {
     return clip_speed_of(pad);
 }
 
-/* thunk (clip_last_thunk): `ldr.w r3, [r4, #0x240]` at 0x080b49b4 (r3 - 1 == index: last segment) */
+/* thunk (clip_last_thunk): `ldr.w r3, [r4, #0x240]` at 0x080b5adc (r3 - 1 == index: last segment) */
 int clip_last_count(const uint8_t *pad)
 {
     int count = *(const int32_t *)(pad + PAD_SEGMENTS);
@@ -296,17 +297,17 @@ int clip_last_count(const uint8_t *pad)
 
 
 /* --- Sync 1/32 ------------------------------------------------------------------------------------------------------ */
-/* Sync (0x76) list: the stock 7 entries (pointers into the stock strings, list at 0x080c4770) + "1/32", appended so the
-   stored indexes of old presets keep their meaning (6 = None). Its beats table (0x080c4f7c, read only by the clip param
-   handler at 0x080b7386 through the literal 0x080b74e4, x 960 ticks) gets the same eighth entry: 1/32 = 0.125 beat,
-   120 ticks. The preset reader's legacy conversion (0x080807b6) keeps searching the stock 7. */
+/* Sync (0x76) list: the stock 7 entries (pointers into the stock strings, list at 0x080c58c0) + "1/32", appended so the
+   stored indexes of old presets keep their meaning (6 = None). Its beats table (0x080c60cc, read only by the clip param
+   handler at 0x080b84ae through the literal 0x080b860c, x 960 ticks) gets the same eighth entry: 1/32 = 0.125 beat,
+   120 ticks. The preset reader's legacy conversion (0x080830da) keeps searching the stock 7. */
 typedef void (*register_list_fn)(void *table, int param, const char *label, const char *const *names, int count,
                                  const char *xml);
-#define fw_register_list ((register_list_fn)FN(0x08069e7c))
+#define fw_register_list ((register_list_fn)FN(0x0806a27c))
 
 const char *const sync_names[8] = {
-    (const char *)0x080c3488u, (const char *)0x080c33acu, (const char *)0x080c33b4u, (const char *)0x080c33b8u,
-    (const char *)0x080c33bcu, (const char *)0x080c33c0u, (const char *)0x080c21ccu, "1/32",
+    (const char *)0x080c45d0u, (const char *)0x080c4528u, (const char *)0x080c4530u, (const char *)0x080c4534u,
+    (const char *)0x080c4538u, (const char *)0x080c453cu, (const char *)0x080c3348u, "1/32",
 };
 const float sync_beats[8] = {1024.0f, 4.0f, 2.0f, 1.0f, 0.5f, 0.25f, 0.0f, 0.125f};
 
@@ -319,16 +320,16 @@ void sync_register(void *table, int param, const char *label, const char *const 
 
 /* --- hide Play Len / Stretch where they do nothing ------------------------------------------------------------------- */
 /* Both need the clip synced: Quant Size (0x2a) not None (8) and Sync (0x76) neither Slice (0) nor None (6) (pad +0x1f5,
-   0x080b6fd4). The page builder 0x08076d8c(app, msg, list, ..) fills a parameter page; the stock hides entries the same
-   way (0x080836c8, Delay vs. Beat Sync at 0x08076f48). */
+   0x080b80fc). The page builder 0x08078ec8(app, msg, list, ..) fills a parameter page; the stock hides entries the same
+   way (0x080884c8, Delay vs. Beat Sync at 0x0807902e). */
 typedef int (*page_fn)(void *app, const void *msg, void *list, int arg);
 typedef void *(*record_fn)(void *app, const void *msg);
 typedef void (*list_remove_fn)(void *list, unsigned param);
 typedef int (*store_get_fn)(const void *store, unsigned param);
-#define fw_page        ((page_fn)FN(0x08076d8c))
-#define fw_record      ((record_fn)FN(0x08076d54))
-#define fw_list_remove ((list_remove_fn)FN(0x080836c8))
-int fast_get(const void *store, unsigned param);       /* fastget.c: 0x080894d0 with a cache */
+#define fw_page        ((page_fn)FN(0x08078ec8))
+#define fw_record      ((record_fn)FN(0x08078e90))
+#define fw_list_remove ((list_remove_fn)FN(0x080884c8))
+int fast_get(const void *store, unsigned param);       /* fastget.c: 0x08089388 with a cache */
 #define fw_store_get fast_get
 #define P_QUANT        0x2a
 #define P_SYNC         0x76

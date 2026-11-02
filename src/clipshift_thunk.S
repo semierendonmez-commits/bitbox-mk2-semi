@@ -1,13 +1,14 @@
+// ported to the bitbox MK2 2.3.4 by tools/port_mk2.py
 /*
  * Clip shift (clipshift.c): the clip reader's stream calls with the pad (r4 at every site) added as the last argument.
- * 0x080a4500 (stream, dst, n, pos, [sp] ch)  at 0x080b5630, 0x080b5720 -> clip_read1(..., ch, pad)
- * 0x080a44c8 (stream, l, r, n, [sp] pos)     at 0x080b567e, 0x080b56f2 -> clip_read2(..., pos, pad)
- * 0x080a4624 (stream, pos)                   at 0x080b47d2, 0x080b4b4c -> clip_seek(stream, pos, pad)
- * Play length: `ldrd r1, r2, [r6, #0x240]` (0x080b5f2e, 0x080b611a; pad in r6, `add r2, r1; cmp` follow) ->
+ * 0x080a58a8 (stream, dst, n, pos, [sp] ch)  at 0x080b6758, 0x080b6848 -> clip_read1(..., ch, pad)
+ * 0x080a5870 (stream, l, r, n, [sp] pos)     at 0x080b67a6, 0x080b681a -> clip_read2(..., pos, pad)
+ * 0x080a59cc (stream, pos)                   at 0x080b58fa, 0x080b5c74 -> clip_seek(stream, pos, pad)
+ * Play length: `ldrd r1, r2, [r6, #0x240]` (0x080b7056, 0x080b7242; pad in r6, `add r2, r1; cmp` follow) ->
  *   r1 = pad[0x240], r2 = clip_segments(pad) - r1, everything else kept (flags are set by the cmp after).
- * Stretch (segment start 0x080b490c, pad in r4):
- *   0x080b4a68 `vmul.f32 s16, s15, s16` -> s16 = s15 x s16 x clip_speed(pad); everything else kept
- *   0x080b49b4 `ldr.w r3, [r4, #0x240]` -> r3 = clip_last_count(pad); everything else kept (flags: subs / cmp follow)
+ * Stretch (segment start 0x080b5a34, pad in r4):
+ *   0x080b5b90 `vmul.f32 s16, s15, s16` -> s16 = s15 x s16 x clip_speed(pad); everything else kept
+ *   0x080b5adc `ldr.w r3, [r4, #0x240]` -> r3 = clip_last_count(pad); everything else kept (flags: subs / cmp follow)
  */
     .syntax unified
     .thumb

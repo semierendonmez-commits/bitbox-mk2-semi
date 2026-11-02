@@ -1,18 +1,19 @@
+/* ported to the bitbox MK2 2.3.4 by tools/port_mk2.py */
 /*
  * Reverb types for the FX2 reverb cell (portkit): Plate (stock), Room, Hall, Chamber.
  *
- * Stock: the reverb object (ctor 0x080a9afc, process 0x080a9690, engine id 0x30100 = FX layer 3, row 1) runs a Dattorro
+ * Stock: the reverb object (ctor 0x080aacdc, process 0x080aa870, engine id 0x30100 = FX layer 3, row 1) runs a Dattorro
  * plate at 29.8 kHz: it reads its settings, resamples the send down, applies the pre-delay, calls the core
- * 0x080a9ec4(state, in, outL, outR, n) (bl at 0x080a9912), resamples back up and applies the wet level. Only that core
+ * 0x080ab0a4(state, in, outL, outR, n) (bl at 0x080aaaf2), resamples back up and applies the wet level. Only that core
  * call is replaced (as in blackbox-mod's src/fx2.c for the Blackbox): every new type gets settings, resampling,
  * pre-delay, run-on and level from the stock code and turns a mono block into a stereo block at 29.8 kHz.
  * Decay arrives in state[0] (= Decay x 0.93), Damping in state[1] (0..1); the micro's plate state has the Blackbox's
  * layout: 12 buffers at state words 8 .. 43 (4 x 512, 2 x 1024, 6 x 8192 floats, re/symbols.md "Reverb").
  *
- * Type is the unused list 0x178 ("FX2": Delay / Reverb, registered at 0x0806b89a, no other use; the global engine
- * handler 0x080a6c3c ignores it), re-registered as "Type:" and put first into the reverb cell's record (type 0x44,
- * defaults at 0x08089aa0). The other settings (0x191 .. 0x19b, above the engine's range) follow the stock three, so the
- * cell's settings pages (built from the record in order, 0x08083744) show them; with Type = Plate they are hidden
+ * Type is the unused list 0x178 ("FX2": Delay / Reverb, registered at 0x0806bc8e, no other use; the global engine
+ * handler 0x080a7e1c ignores it), re-registered as "Type:" and put first into the reverb cell's record (type 0x44,
+ * defaults at 0x08089958). The other settings (0x191 .. 0x19b, above the engine's range) follow the stock three, so the
+ * cell's settings pages (built from the record in order, 0x08088544) show them; with Type = Plate they are hidden
  * (clip_page, src/clipshift.c). Stock firmware ignores the new values and plays its plate.
  *
  * Hall / Chamber: my own design after the published Griesinger / Dattorro tank ("Effect Design Part 1", J. Dattorro,
@@ -35,14 +36,14 @@ typedef void (*register_knob_fn)(void *table, int param, int type, const char *l
                                  const char *xml);
 typedef void (*store_add_fn)(void *store, unsigned param, int value);
 typedef int (*store_get_fn)(const void *store, unsigned param);
-#define fw_plate_core    ((core_fn)FN(0x080a9ec4))
-#define fw_register_list ((register_list_fn)FN(0x08069e7c))
-#define fw_register_knob ((register_knob_fn)FN(0x08069ed4))
-#define fw_store_add     ((store_add_fn)FN(0x0808951e))
-int fast_get(const void *store, unsigned param);       /* fastget.c: 0x080894d0 with a cache */
+#define fw_plate_core    ((core_fn)FN(0x080ab0a4))
+#define fw_register_list ((register_list_fn)FN(0x0806a27c))
+#define fw_register_knob ((register_knob_fn)FN(0x0806a2d4))
+#define fw_store_add     ((store_add_fn)FN(0x080893d6))
+int fast_get(const void *store, unsigned param);       /* fastget.c: 0x08089388 with a cache */
 #define fw_store_get fast_get
 
-#define APP_FX     (0x24013cb0u + 0x2200u)     /* app: FX cell records, 0x18 each, by row (0x0807d854) */
+#define APP_FX     (0x24015170u + 0x2200u)     /* app: FX cell records, 0x18 each, by row (0x0807f8da) */
 #define OBJ_ID     0x18                        /* engine object id: 3 << 16 | row << 8 (reverb 0x30100) */
 #define FS         29800.0f
 
@@ -78,7 +79,7 @@ static const struct pdef pdefs[] = {
 };
 #define NPARAMS ((int)(sizeof pdefs / sizeof pdefs[0]))
 
-/* Replaces the registration of 0x178 (bl at 0x0806b89a). Knobs: type 8, 0 .. 1000 (shown as %). */
+/* Replaces the registration of 0x178 (bl at 0x0806bc8e). Knobs: type 8, 0 .. 1000 (shown as %). */
 void reverb_register(void *table, int param, const char *label, const char *const *names, int count, const char *xml)
 {
     (void)label;
@@ -89,14 +90,14 @@ void reverb_register(void *table, int param, const char *label, const char *cons
         fw_register_knob(table, pdefs[k].id, 8, pdefs[k].label, 0, 1000, pdefs[k].xml);
 }
 
-/* Reverb cell record (type 0x44): Type before the stock "Decay 600" (bl at 0x08089aa8) ... */
+/* Reverb cell record (type 0x44): Type before the stock "Decay 600" (bl at 0x08089960) ... */
 void reverb_defaults_first(void *store, unsigned param, int value)
 {
     fw_store_add(store, P_TYPE, ALG_PLATE);
     fw_store_add(store, param, value);
 }
 
-/* ... and the new settings after its last default, "Damping 500" (bl at 0x08089abe). */
+/* ... and the new settings after its last default, "Damping 500" (bl at 0x08089976). */
 void reverb_defaults_last(void *store, unsigned param, int value)
 {
     fw_store_add(store, param, value);
@@ -191,8 +192,8 @@ struct rstate {
     float rlp[8];
     uint32_t rlfo[4];
 };
-#define RS1 ((volatile struct rstate *)0x2406d000u)    /* reverb cell; after the WSOLA grain states (..0x2406cdff) */
-#define RS2 ((volatile struct rstate *)0x2406d100u)    /* FX3 (src/fx3.c) */
+#define RS1 ((volatile struct rstate *)0x2406cc00u)    /* reverb cell; after the WSOLA grain states (..0x2406c9ff) */
+#define RS2 ((volatile struct rstate *)0x2406cd00u)    /* FX3 (src/fx3.c) */
 _Static_assert(sizeof(struct rstate) <= 0x100, "reverb state must fit its 0x100 slot (tests/test_ram.py)");
 #define RMAGIC 0x52564231u             /* "RVB1" */
 _Static_assert(sizeof(struct rstate) <= 0x100, "reverb state fits its patch RAM slot");
@@ -578,7 +579,7 @@ static void room(volatile struct rstate *RS, float *state, const struct settings
 }
 
 /* --- the core call ---------------------------------------------------------------------------------------------------- */
-#define RVB_OBJ (*(uint8_t *volatile *)0x2406cff0u)    /* set by reverb_core_thunk: the reverb object (r4 there) */
+#define RVB_OBJ (*(uint8_t *volatile *)0x2406cbf0u)    /* set by reverb_core_thunk: the reverb object (r4 there) */
 
 /* one instance: Type switch clears the buffers, then the algorithm */
 static void run(volatile struct rstate *RS, float *state, const struct settings *st, const float *in, float *outl,
@@ -612,7 +613,7 @@ static void run(volatile struct rstate *RS, float *state, const struct settings 
     }
 }
 
-/* Replaces the core call in the reverb's process (bl at 0x080a9912), via reverb_core_thunk. */
+/* Replaces the core call in the reverb's process (bl at 0x080aaaf2), via reverb_core_thunk. */
 void reverb_core(float *state, const float *in, float *outl, float *outr, int n)
 {
     struct settings st;

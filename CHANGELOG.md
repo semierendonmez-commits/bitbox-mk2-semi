@@ -1,5 +1,22 @@
 # Changelog
 
+## bitbox-mk2-semi
+
+Builds for the **bitbox MK2** on top of the stock firmware **2.3.4**, named `2.3.4-s<build>`.
+
+### 2.3.4-sA (2026-11-02): first MK2 build (emulation only, not on a unit yet)
+
+Ported from portkit pkZD (micro): Fidelity (+ on Clip / Slicer / Granular Conf lists), 24 dB SVF filter, Drive,
+Filter 2 / Res 2 (MK2: LFO page), clip Shift / Play Len / Stretch (Smooth = WSOLA) / Str Mode / Loop Fade / Sync 1/32
+(MK2: clip Pos list), reverb types + Level, CPU load (MK2: after the free-memory text in the status bar), parameter
+cache. MK2-specific: page placement for the 5 x 36 page tables, status-bar load next to "%dMB", RAM layout in the MK2
+gap 0x2406ad98..0x24070dc0 (Renode canary), Renode platform for the MK2 (sim/mk2.repl), address translator and map.
+Not yet: FX3, master compressor / distortion, recording sends.
+
+---
+
+## portkit (bitbox micro), the upstream history
+
 portkit for the 1010music bitbox micro, on top of the stock firmware **2.3.4**. Versions are named after the stock
 version plus the portkit build (`2.3.4-pkZD`); the splash screen shows it.
 

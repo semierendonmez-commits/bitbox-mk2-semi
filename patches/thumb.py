@@ -1,3 +1,4 @@
+# ported to the bitbox MK2 2.3.4 by tools/port_mk2.py
 """Thumb-2 encoding helpers for patchsets (BL encoder after blackbox-mod/patches/thumb.py, MIT, Justin Joe)."""
 import os
 import struct
@@ -5,7 +6,7 @@ import subprocess
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE = 0x08040000
-STOCK_END = 0x080E3E90          # end of the stock 2.3.4 image = origin of the code cave (src/cave.ld)
+STOCK_END = 0x080E4C50          # end of the stock 2.3.4 image = origin of the code cave (src/cave.ld)
 
 
 def bl(at, target):

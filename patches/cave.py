@@ -1,11 +1,17 @@
-"""The compiled code cave (./build.sh), appended after the stock image, plus the splash marking a modified build:
-line 2 "by 1010music" -> "portkit mod", line 3 "2.3.4" -> "2.3.4-pk<BUILD>". Slots are 16 bytes; a pointer table
-follows at 0x080c5780, and the panel shows at most 10 characters of the version (bitbox-micro-fw-patch)."""
+# ported to the bitbox MK2 2.3.4 by tools/port_mk2.py
+"""The compiled code cave (./build.sh), appended after the stock image, plus the splash / Menu marking a modified
+build: line 2 "by 1010music" -> "semi mod", line 3 "2.3.4" -> "2.3.4-s<BUILD>". Slots are 16 bytes (MK2 0x080c68ec,
+0x080c68fc; micro 0x080c5760 / 0x080c5770); the version also shows at the lower right of the Menu screen.
+
+Builds (portkit's micro history up to pkZD: portkit-micro CHANGELOG.md):
+  A = first MK2 build: cave, CPU load, Fidelity + 24 dB SVF, Drive / Filter 2, clip Shift / Play Len / Stretch /
+      Loop Fade / Sync 1/32, reverb types; MK2 page placement (LFO page, Pos list, Conf list)
+"""
 import os
 
 from thumb import ROOT, STOCK_END
 
-BUILD = b"ZD"    # 1 = Fidelity + 24 dB SVF (no machine drive), 2 = + Fidelity on Clip / Slicer / Granular pages, 3 = + pad pages (pads 9-16), 4 = page switch on the real Pads screen (0x63), 5 = left arrow pages, page indicator on Pads, 6 = select via 0x63, touch toggles on Pads and Mixer, 7 = Effects: selected cell toggles, P1/P2, 8 = page in the title (Pads, FX), Mixer toggle via click command, 9 = tile play state / progress follow the page, 10 = pad picker pages + toggle, B = pages by button only, picker footer toggle, pad names in the picker, C = encoder within the page, picker: left arrow, small footer, 5-char names, selected mark kept, D = DIAG title (encoder paths), picker footer stock, picker follows the marked pad, E = Pads encoder lists follow the page, no DIAG, F = Drive (tanh) + Filter 2 (24 dB) on the main page, Res clean, G = Shift for clips (-100..100 ms, loop rotation), H = Play Len for clips (Full, 1/4..32 bars), I = Stretch % for clips (beat count / speed, quantized), J = Stretch fixed (also on Auto: scales the clip length in ticks), K = Sync 1/32, Play Len / Stretch hidden when not synced, L = Stretch applies at once (re-sends Sync), M = Stretch live at every segment start (position x speed), setup hooks removed, N = DIAG title (Stretch: UI / engine values), O = (withdrawn), P = pad record capacity 72, DIAG with record count, Q = Stretch id 0x1c5 -> 0x1c6 (0x1c5 is the firmware's), no DIAG, R = smooth time stretch (WSOLA) + Stretch Mode, audio load in the status bar, S = load shown in the idle case, right end of the bar, T = reverb types Plate / Room / Hall / Chamber + 10 settings, U = FX3 send on bus 0xc (second reverb), Effects RVB/FX3 cell, pages by left arrow, V = reverb types level-matched to the plate, Level knob, W = FX3 on FX row 3 (0x330, the stock EQ is row 2), right arrow: FX3 page, again: master EQ, X = master section: Tools left arrow = Compressor page (threshold, ratio, attack, release, gain), right arrow = master distortion (Soft / Hard / Fold / Tube, drive, tone, mix, level), Y = Comp Type Stock / SSL (SSL-style bus compressor, switch values), compressor Mix, Z = less CPU: cached parameter lookups, distortion on rings (-50 %), reverb LFOs interpolated per block (-8..-14 %), ZA = recording keeps the pad sends, the input monitor goes through the selected pad's FX1 / FX2 / FX3 sends, ZB = patch RAM moved out of the firmware's SD buffers (0x2406f4e0+), ZC = Stretch: position jumps while playing spliced (no hard grain reset), Auto stays smooth through 0 %, ZD = Loop Fade for clips (0..50 ms dip at the loop's seams)
+BUILD = b"A"
 
 
 def slot(text, size=16):
@@ -13,11 +19,11 @@ def slot(text, size=16):
     return text + b"\0" * (size - len(text))
 
 
-VERSION = b"2.3.4-pk" + BUILD
-assert len(VERSION) <= 10, "the panel shows 10 characters of the version"
+VERSION = b"2.3.4-s" + BUILD
+assert len(VERSION) <= 10, "keep the version short (the micro panel showed 10 characters; MK2 Menu: to check)"
 
 PATCHES = [
-    (0x080C5760, slot(b"by 1010music"), slot(b"portkit mod")),
-    (0x080C5770, slot(b"2.3.4"), slot(VERSION)),
+    (0x080C68EC, slot(b"by 1010music"), slot(b"semi mod")),
+    (0x080C68FC, slot(b"2.3.4"), slot(VERSION)),
     (STOCK_END, b"", open(os.path.join(ROOT, "out", "cave.bin"), "rb").read()),
 ]

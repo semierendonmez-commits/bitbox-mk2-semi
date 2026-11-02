@@ -17,6 +17,9 @@ PY = sys.executable
 PADS = [
     (0, 0, "Sample", 0, ""),
     (0, 1, "Clip", 1, 'synctype="5" quantsize="3" beatcount="8"'),
+    (1, 1, "SP1200", 0, 'interpqual="2" pkdrive="350"'),
+    (1, 2, "Stretch", 1, 'synctype="5" quantsize="3" beatcount="8" pkshift="30" pkstretch="25" pkstretchmode="2" '
+                         'pkloopfade="10"'),
     (0, 2, "Slicer", 2, ""),
     (0, 3, "Granular", 3, ""),
     (1, 0, "Keys", 0, ""),
@@ -27,6 +30,7 @@ PADS = [
 
 
 def main(a):
+    """a: [image path]"""
     sd = os.path.abspath(a[0]) if a else os.path.join(ROOT, "out", "sim", "mk2_sd.img")
     pre = os.path.join(TREE, "Presets", "Test")
     shutil.rmtree(TREE, ignore_errors=True)

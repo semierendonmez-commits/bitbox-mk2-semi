@@ -1,5 +1,6 @@
+# ported to the bitbox MK2 2.3.4 by tools/port_mk2.py
 """Unicorn tests for patches/reverb.py (src/reverb.c) on the patched image: registration, the reverb cell record, the
-real reverb state init 0x080a9c94 and plate core 0x080a9ec4 (Type Plate bit-identical), impulse responses of Room /
+real reverb state init 0x080aae74 and plate core 0x080ab0a4 (Type Plate bit-identical), impulse responses of Room /
 Hall / Chamber (decay time, stereo, stability), the page filter, and the cost per block.
 
   python3 -I tests/test_reverb.py      (after ./build.sh and patch.py fidelity pages padpages sound reverb fx3 cave)
@@ -17,8 +18,8 @@ from unicorn import UC_HOOK_CODE  # noqa: E402
 from unicorn.arm_const import UC_ARM_REG_R4  # noqa: E402
 
 e = Emu()
-e.stub(0x08042DFC, lambda uc: uc.reg_write(UC_ARM_REG_R0, e.new(uc.reg_read(UC_ARM_REG_R0))))  # DTCM allocator (size)
-APP = 0x24013CB0
+e.stub(0x08043B88, lambda uc: uc.reg_write(UC_ARM_REG_R0, e.new(uc.reg_read(UC_ARM_REG_R0))))  # DTCM allocator (size)
+APP = 0x24015170
 REC = APP + 0x2200 + 1 * 0x18                    # reverb cell (row 1)
 FS = 29800
 
@@ -32,10 +33,10 @@ def fake_knob(uc):
     sp = uc.reg_read(UC_ARM_REG_SP)
     knobs.append((uc.reg_read(UC_ARM_REG_R1), uc.reg_read(UC_ARM_REG_R2), e.cstr(uc.reg_read(UC_ARM_REG_R3)),
                   e.r32(sp), e.r32(sp + 4)))
-e.stub(0x08069E7C, fake_list)
-e.stub(0x08069ED4, fake_knob)
-e.call(SYM["reverb_register"], 0, 0x178, 0x080C0EC0, 0x080C4770, stack=(2, 0x080C0EC8))
-del e.stubs[0x08069E7C], e.stubs[0x08069ED4]
+e.stub(0x0806A27C, fake_list)
+e.stub(0x0806A2D4, fake_knob)
+e.call(SYM["reverb_register"], 0, 0x178, 0x080C203C, 0x080C58C0, stack=(2, 0x080C2044))
+del e.stubs[0x0806A27C], e.stubs[0x0806A2D4]
 t = lists.get(0x178)
 check("Type list: Plate, Room, Hall, Chamber (label Type:, xml stays fx2algo's slot)",
       t and t[0] == "Type:" and [e.cstr(e.r32(t[1] + 4 * k)) for k in range(t[2])] == ["Plate", "Room", "Hall", "Chamber"])
@@ -46,7 +47,7 @@ check("eleven settings registered: ids 0x191-0x19b (Level last), 0..1000",
 # --- reverb cell record (type 0x44): Type first, stock three, then the settings
 typ = e.new(4)
 e.mu.mem_write(typ, b"\x44")
-e.call(0x08089FC4, REC, typ)
+e.call(0x08089E7C, REC, typ)
 cnt, ent = struct.unpack("<H", e.mu.mem_read(REC + 0xA, 2))[0], e.r32(REC + 4)
 ids = [struct.unpack("<H", e.mu.mem_read(ent + 8 * k, 2))[0] for k in range(cnt)]
 vals = [e.r32(ent + 8 * k + 4) for k in range(cnt)]
@@ -55,12 +56,12 @@ check("reverb record: Type, Decay, Predelay, Damping, then Size .. Lo Cut, Level
       and vals == [0, 600, 40, 500, 500, 700, 500, 400, 300, 400, 300, 1000, 800, 100, 500], (ids, vals))
 
 def setp(pid, v):
-    e.call(0x080894FA, REC, pid, v)
+    e.call(0x080893B2, REC, pid, v)
 
-# --- real plate state (init 0x080a9c94 on 0xb0 bytes), reverb object with the cell's id
+# --- real plate state (init 0x080aae74 on 0xb0 bytes), reverb object with the cell's id
 def new_state(decay=0.6, damp=0.5):
     st = e.new(0xB0)
-    e.call(0x080A9C94, st)
+    e.call(0x080AAE74, st)
     e.wf(st, [decay * 0.93, damp])
     return st
 
@@ -84,7 +85,7 @@ def stock(st, sig, n=N):
     L, R = [], []
     for k in range(0, len(sig), n):
         e.wf(inb, sig[k:k + n])
-        e.call(0x080A9EC4, st, inb, lb, rb, stack=(n,))
+        e.call(0x080AB0A4, st, inb, lb, rb, stack=(n,))
         L += e.rf(lb, n)
         R += e.rf(rb, n)
     return L, R
@@ -183,12 +184,12 @@ def page_ids(tval):
         for k, pid in enumerate(pids):
             e.mu.mem_write(lst + 4 + 12 * k, struct.pack("<HHHHI", pid, 0, 0, 0, 0))
         uc.reg_write(UC_ARM_REG_R0, 1)
-    e.stub(0x08076D8C, fill)
+    e.stub(0x08078EC8, fill)
     m = e.new(8)
-    e.w32(m, 0x080BF4CC)
+    e.w32(m, 0x080C05EC)
     e.mu.mem_write(m + 4, struct.pack("<H", 0x310))
     e.call(SYM["clip_page"], APP, m, lst, 0)
-    del e.stubs[0x08076D8C]
+    del e.stubs[0x08078EC8]
     return [struct.unpack_from("<H", e.mu.mem_read(lst + 4 + 12 * k, 2))[0] for k in range(e.r32(lst))]
 check("reverb page: Plate shows Type + stock three + Level; Hall shows all 15",
       page_ids(0) == [0x178, 0x1A, 0x1E, 0x1D, 0x19B] and len(page_ids(2)) == 15)

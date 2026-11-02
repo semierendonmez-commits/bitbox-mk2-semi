@@ -1,6 +1,7 @@
+/* ported to the bitbox MK2 2.3.4 by tools/port_mk2.py */
 /*
  * Smooth time stretch for clip pads (portkit): WSOLA (waveform-similarity overlap-add) in place of the clip slot's
- * read + resample 0x080b55ac (its only caller 0x080b58fc, the slot reader 0x080b5728).
+ * read + resample 0x080b66d4 (its only caller 0x080b6a24, the slot reader 0x080b6850).
  *
  * Stock: a clip slot reads its file at the pitch rate (s0: file rate x pitch) and keeps time only by starting every
  * Sync unit (segment k) at file position k x segment length; when the song tempo differs from the clip's, each unit
@@ -20,18 +21,18 @@
 
 #define FN(addr) ((addr) | 1u)
 
-/* 0x080b55ac(pad, -, int64 pos, s0 rate, n, int *consumed, float *frac, srcbuf, outbuf, void **result) */
+/* 0x080b66d4(pad, -, int64 pos, s0 rate, n, int *consumed, float *frac, srcbuf, outbuf, void **result) */
 typedef int (*slot_read_fn)(void *pad, int unused, int64_t pos, float rate, int n, int *consumed, float *frac,
                             void *src, void *out, void **result);
-#define fw_slot_read ((slot_read_fn)FN(0x080b55ac))
+#define fw_slot_read ((slot_read_fn)FN(0x080b66d4))
 typedef int (*u8_fn)(void *obj);
-#define fw_stereo    ((u8_fn)FN(0x080a4650))          /* stream: two channels (+0x1c) */
+#define fw_stereo    ((u8_fn)FN(0x080a59f8))          /* stream: two channels (+0x1c) */
 typedef int (*frames_fn)(void *stream);
-#define fw_frames    ((frames_fn)FN(0x080a45ac))
+#define fw_frames    ((frames_fn)FN(0x080a5954))
 typedef float *(*mono_fn)(void *buf);
-#define fw_buf_mono  ((mono_fn)FN(0x080a321c))       /* buffer: frames = capacity, mono; returns plane L */
+#define fw_buf_mono  ((mono_fn)FN(0x080a45c4))       /* buffer: frames = capacity, mono; returns plane L */
 typedef int (*planes_fn)(void *buf, float **l, float **r);
-#define fw_buf_stereo ((planes_fn)FN(0x080a32d4))    /* buffer: frames = capacity, stereo; planes L, R */
+#define fw_buf_stereo ((planes_fn)FN(0x080a467c))    /* buffer: frames = capacity, stereo; planes L, R */
 
 int clip_read1(void *stream, float *dst, int n, int pos, int ch, const uint8_t *pad);       /* clipshift.c */
 int clip_read2(void *stream, float *left, float *right, int n, int pos, const uint8_t *pad);
@@ -139,8 +140,8 @@ struct grains {
 };
 #define GMAGIC 0x57534f4cu      /* "WSOL" */
 #define SLOTS  64               /* 16 pads x 4 slots */
-#define GRAINS ((volatile struct grains *)0x2406c400u)   /* patch RAM, 64 x 40 bytes; device memory, aligned */
-_Static_assert(64 * sizeof(struct grains) <= 0xa00, "grain states must end before 0x2406ce00");
+#define GRAINS ((volatile struct grains *)0x2406c000u)   /* patch RAM, 64 x 40 bytes; device memory, aligned */
+_Static_assert(64 * sizeof(struct grains) <= 0xa00, "grain states must end before 0x2406ca00");
 _Static_assert(sizeof(struct grains) == 40, "grain state size");
 
 /* coarse time for "is this slot still playing": DWT cycle counter / 65536 (136 us at 480 MHz; enabled by load.c) */
@@ -298,7 +299,7 @@ static int smooth(const uint8_t *pad)
     return st != 0 && st >= -100 && st <= 100;
 }
 
-/* replaces the call of 0x080b55ac at 0x080b58fc (same arguments) */
+/* replaces the call of 0x080b66d4 at 0x080b6a24 (same arguments) */
 /* the slot's grain state; 0 if the slot is not one of the 16 grid pads' 4 */
 static volatile struct grains *slot_grains(const uint8_t *pad, const float *frac)
 {

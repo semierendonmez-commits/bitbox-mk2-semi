@@ -1,3 +1,4 @@
+/* ported to the bitbox MK2 2.3.4 by tools/port_mk2.py */
 /*
  * Fidelity (pad crunch + sampler machine modes) + 24 dB state-variable filter, ported to the 1010music bitbox micro,
  * firmware 2.3.4. Based on src/filter.c of blackbox-mod (Copyright (c) 2026 Justin Joe, MIT; see THIRD_PARTY.md),
@@ -5,7 +6,7 @@
  * micro's (re/symbols.md). Not ported: the machine-mode input drive (Blackbox 3.1.n rides it on the Saturation knob,
  * which the micro does not have).
  *
- * Stock: every voice runs its pad filter once per audio block (0x080b8420): one RBJ biquad, 12 dB/oct, low-pass
+ * Stock: every voice runs its pad filter once per audio block (0x080b9548): one RBJ biquad, 12 dB/oct, low-pass
  * when the Filter knob is left of centre and high-pass when right of it, bypassed at centre. This replaces that
  * call (both pad classes) with:
  *   1. Crunch: the pad's Interp list ("Fidelity") gains machine modes and seven fixed rates after Normal / HighQ.
@@ -35,20 +36,20 @@ typedef int (*buf_chans_fn)(void *buf, float **left, float **right);
 typedef void (*register_fn)(void *table, int param, const char *label, const char *const *names, int count,
                             const char *xml);
 
-#define fw_cutoff_hz  ((curve_fn)FN(0x080a01bc))     /* knob 0..1 -> Hz */
-#define fw_res_q      ((curve_fn)FN(0x080a0240))     /* Res 0..1 -> Q */
-#define fw_param      ((param_fn)FN(0x080a19f4))     /* modulated parameter value */
-#define fw_buf_silent ((buf_int_fn)FN(0x080a31ec))
-#define fw_buf_frames ((buf_int_fn)FN(0x080a31e0))
-#define fw_buf_chans  ((buf_chans_fn)FN(0x080a3228))
-#define fw_register_list ((register_fn)FN(0x08069e7c))
+#define fw_cutoff_hz  ((curve_fn)FN(0x080a1564))     /* knob 0..1 -> Hz */
+#define fw_res_q      ((curve_fn)FN(0x080a15e8))     /* Res 0..1 -> Q */
+#define fw_param      ((param_fn)FN(0x080a2d9c))     /* modulated parameter value */
+#define fw_buf_silent ((buf_int_fn)FN(0x080a4594))
+#define fw_buf_frames ((buf_int_fn)FN(0x080a4588))
+#define fw_buf_chans  ((buf_chans_fn)FN(0x080a45d0))
+#define fw_register_list ((register_fn)FN(0x0806a27c))
 
 #define FS         48000.0f
 #define PI_F       3.14159265f
 #define OBJ_PARAMS 0x84          /* filter object -> its parameter block: Filter knob @+8, Res @+0x44 */
 #define P_INTERP   0xd2          /* Interp / Fidelity (Blackbox: 0xf1) */
-/* New pad parameters. The parameter table holds ids up to 0x1d0 (0x08069e4c), the engine ignores ids above 0x17a
-   (0x080b1aea, 0x080a6ca4), so the app keeps them in the pad record (presets: xml name) and the engine never sees
+/* New pad parameters. The parameter table holds ids up to 0x1d0 (0x0806a24c), the engine ignores ids above 0x17a
+   (0x080b2b42, 0x080a7e84), so the app keeps them in the pad record (presets: xml name) and the engine never sees
    them; filter_process reads them from the record like Interp. */
 #define P_FILT2    0x1c0         /* Filter 2: -1000 (low-pass) .. 0 (off) .. 1000 (high-pass), like Filter (0xaa) */
 #define P_RES2     0x1c1         /* Res 2: 0 .. 1000, default 500 like Res (0x11) */
@@ -98,16 +99,16 @@ static const struct machine machines[] = {
 #define FIRST_CRUNCH  (STOCK_INTERP + MACHINES)
 
 const char *const interp_names[STOCK_INTERP + CRUNCHES + MACHINES] = {
-    (const char *)0x080c2414u, (const char *)0x080c241cu,       /* stock "Normal", "HighQ" */
+    (const char *)0x080c3590u, (const char *)0x080c3598u,       /* stock "Normal", "HighQ" */
     "SP1200", "SP-12", "S950", "MPC60", "SP Raw",
     "16k", "12k", "10k", "8k", "6k", "4k", "2k",
 };
 
-/* Replaces the Interp list registration call (0x0806b34a): 2 -> 14 entries, label "Interp:" -> "Fidelity:". The xml
+/* Replaces the Interp list registration call (0x0806b73e): 2 -> 14 entries, label "Interp:" -> "Fidelity:". The xml
    name "interpqual" stays, so presets are unaffected. */
 typedef void (*register_knob_fn)(void *table, int param, int type, const char *label, int min, int max,
                                  const char *xml);
-#define fw_register_knob ((register_knob_fn)FN(0x08069ed4))  /* type 8: 0..max, type 9: bipolar (Filter 0xaa) */
+#define fw_register_knob ((register_knob_fn)FN(0x0806a2d4))  /* type 8: 0..max, type 9: bipolar (Filter 0xaa) */
 
 void master_register(void *table);
 
@@ -130,12 +131,12 @@ void interp_register(void *table, int param, const char *label, const char *cons
     master_register(table);                                                   /* master.c: compressor, distortion */
 }
 
-/* Pad record init (0x08089548): its two pad blocks add Filter (0xaa) through 0x0808951e (0x080896f8, 0x08089922);
-   the new parameters go in right after it, with their defaults. Records hold 64 entries (0x0808949e), pads use 58.
-   Presets without them keep these defaults: the reader (0x0808056c) inits the record, then sets only the attributes
+/* Pad record init (0x08089400): its two pad blocks add Filter (0xaa) through 0x080893d6 (0x080895b0, 0x080897da);
+   the new parameters go in right after it, with their defaults. Records hold 64 entries (0x08089356), pads use 58.
+   Presets without them keep these defaults: the reader (0x08082e90) inits the record, then sets only the attributes
    it finds. */
 typedef void (*store_add_fn)(void *store, unsigned param, int value);
-#define fw_store_add ((store_add_fn)FN(0x0808951e))
+#define fw_store_add ((store_add_fn)FN(0x080893d6))
 
 void pad_store_add(void *store, unsigned param, int value)
 {
@@ -156,7 +157,7 @@ struct fstate {                  /* at filter object +4..+0x44; the stock coeffi
     float g, r, drive;           /* smoothed: SVF frequency coefficient, damping of the resonant stage, Drive 0..1 */
     float s1[2][2], s2[2][2];    /* integrator states [stage][channel] */
     float phase, held[2];        /* crunch: hold phase and held sample per channel */
-    uint32_t on;                 /* filter was running last block; the stock voice-start reset (0x080b8794) zeroes it */
+    uint32_t on;                 /* filter was running last block; the stock voice-start reset (0x080b98bc) zeroes it */
 };
 #define MAGIC 0x53564632u        /* "SVF2" */
 #define R_BUTTERWORTH 1.84776f   /* 1 / 0.5412: first stage of a 4-pole Butterworth */
@@ -165,7 +166,7 @@ struct fstate {                  /* at filter object +4..+0x44; the stock coeffi
 _Static_assert(4 + sizeof(struct fstate) == 0x44, "fstate at +4..+0x43");
 
 /* Filter 2's state, in the two parts of the object nobody else uses: +0x44..+0x5f (zeroed with `on` by the voice-start
-   reset 0x080b8794, so on2 = 0 there) and +0x74..+0x83 (after the machine output stage's ostate). */
+   reset 0x080b98bc, so on2 = 0 there) and +0x74..+0x83 (after the machine output stage's ostate). */
 struct f2head {
     float g, r;                  /* smoothed, as in fstate */
     uint32_t on;                 /* running last block */
@@ -193,7 +194,7 @@ static float quantize12(float x)
 }
 
 /* Output stage of a machine mode. State in the filter object at +0x60..+0x73, which only the stock process (replaced)
-   and its coefficient helper 0x080b827c (called only from it) used. */
+   and its coefficient helper 0x080b93a4 (called only from it) used. */
 struct ostate {
     uint32_t magic;
     float z[2][2];
@@ -317,15 +318,15 @@ static void svf_coeffs(float knob, float res, float *g, float *r)
 
 /*
  * The pad's Interp setting, read from the app's record of the pad (what the screen shows and presets save), not from
- * the engine's copy at pad +0x564: the engine's pad reset (0x080b17aa, message type 0x40; same as the Blackbox's
+ * the engine's copy at pad +0x564: the engine's pad reset (0x080b2802, message type 0x40; same as the Blackbox's
  * FUN_080596b0) sets that copy back to Normal.
  * Engine pad id (pad +0x18) = row << 8 | col, row and col 0..3; app pad record = app + 0x1840 + row * 0xf0 + col * 0x30
- * (init loop 0x08077f5e), read with the stock store lookup 0x080894d0.
+ * (init loop 0x08079fbc), read with the stock store lookup 0x08089388.
  */
 typedef int (*setting_fn)(const void *store, unsigned param);
-int fast_get(const void *store, unsigned param);       /* fastget.c: 0x080894d0 with a cache */
+int fast_get(const void *store, unsigned param);       /* fastget.c: 0x08089388 with a cache */
 #define fw_setting fast_get
-#define APP_PADS   (0x24013cb0u + 0x1840u)
+#define APP_PADS   (0x24015170u + 0x1840u)
 
 unsigned pad_setting(const uint8_t *pad, unsigned param)
 {
@@ -452,9 +453,9 @@ void filter_process(uint8_t *obj, void *buf, const uint8_t *pad)
 }
 
 /*
- * The voice reader. Sample voices read their sample through 0x080adc4c, which fetches the source into a scratch buffer
+ * The voice reader. Sample voices read their sample through 0x080aeca8, which fetches the source into a scratch buffer
  * and resamples it with one of two kernels chosen by the engine's Interp copy (pad +0x564 != 0 -> HighQ):
- * 0x080a1400 (Normal) or 0x080a1494 (HighQ). Both take (rate s0, src r0, n_src r1, int pos r2, int *newpos r3,
+ * 0x080a27a8 (Normal) or 0x080a283c (HighQ). Both take (rate s0, src r0, n_src r1, int pos r2, int *newpos r3,
  * float *frac, float *dst, int n); the reading point is src[pos + frac] and moves by |rate| per output frame.
  * voice_read (below) parks the reader's pad, absolute source position and signed rate here, so the machine grid is
  * anchored on the sample itself, not on each block's scratch buffer.
@@ -465,13 +466,13 @@ struct read_park {
     int32_t pos;
     float rate;
 };
-#define PARK ((volatile struct read_park *)0x2406c100u)     /* above the stack top, past the micro patcher's store
-                                                               (0x2406c000..0x2406c07c); MPU device memory, aligned */
+#define PARK ((volatile struct read_park *)0x2406bd00u)     /* MK2: above the stack top (tests/test_ram.py);
+                                                               MPU device memory, aligned */
 
 typedef void (*kernel_fn)(float rate, const float *src, int n_src, int pos, int *newpos, float *frac, float *dst,
                           int n);
-#define fw_kernel_normal ((kernel_fn)FN(0x080a1400))
-#define fw_kernel_hq     ((kernel_fn)FN(0x080a1494))
+#define fw_kernel_normal ((kernel_fn)FN(0x080a27a8))
+#define fw_kernel_hq     ((kernel_fn)FN(0x080a283c))
 
 static inline float floor_f(float x)
 {
@@ -489,7 +490,7 @@ static void machine_read(const struct machine *m, float rate, const float *src, 
 {
     /* scratch index -> absolute source position. Forward: scratch[0] = source[P - 4]. Reverse: the reader fetched
        from round(P) - n_src + 4 and reversed the buffer, so scratch[j] = source[round(P) + 3 - j]. The micro's reader
-       uses the same offsets as the Blackbox's (0x080adccc / 0x080ade84). */
+       uses the same offsets as the Blackbox's (0x080aed28 / 0x080aeee0). */
     int32_t base = PARK->pos - 4;
     float sgn = 1.0f;
     if (PARK->rate < 0.0f) {
@@ -532,7 +533,7 @@ static void machine_read(const struct machine *m, float rate, const float *src, 
 
 typedef int (*voice_read_fn)(float frac, float rate, const uint8_t *pad, void *src, int pos, int a6, int frames,
                              int offset, void *scratch, void *out);
-#define fw_voice_read ((voice_read_fn)FN(0x080adc4c))
+#define fw_voice_read ((voice_read_fn)FN(0x080aeca8))
 
 static const struct machine *pad_machine(const uint8_t *pad)
 {
@@ -541,7 +542,7 @@ static const struct machine *pad_machine(const uint8_t *pad)
 }
 
 /*
- * Replaces the calls to the sample-voice reader 0x080adc4c (@0x080aee92, 0x080af0d8, 0x080af19a): park the pad,
+ * Replaces the calls to the sample-voice reader 0x080aeca8 (@0x080afeee, 0x080b0134, 0x080b01f6): park the pad,
  * absolute position and signed rate for the kernels. At exactly the original pitch the stock reader copies the source
  * without a kernel; in a machine mode the rate goes in as the next float above 1.0, so those voices still read through
  * the machine's grid and anti-alias taps. The voice's own position bookkeeping is the caller's, unaffected.
@@ -563,8 +564,8 @@ static const struct machine *read_machine(void)
     return pad_machine(PARK->pad);
 }
 
-/* Replace the kernel calls in 0x080adc4c: Normal @0x080adf00 / 0x080adf24 / 0x080adf48, HighQ @0x080add4c /
-   0x080addd8 / 0x080addfc. */
+/* Replace the kernel calls in 0x080aeca8: Normal @0x080aef5c / 0x080aef80 / 0x080aefa4, HighQ @0x080aeda8 /
+   0x080aee34 / 0x080aee58. */
 void read_normal(float rate, const float *src, int n_src, int pos, int *newpos, float *frac, float *dst, int n)
 {
     const struct machine *m = read_machine();

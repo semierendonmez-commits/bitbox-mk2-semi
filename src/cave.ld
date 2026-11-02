@@ -1,6 +1,8 @@
-/* Code cave: appended directly after the stock bitbox micro 2.3.4 image (671376 bytes, ends at 0x080E3E90).
-   The micro patcher appends the same way (_append in patch_micro.py), so the bootloader takes a longer image. */
-MEMORY { CAVE (rx) : ORIGIN = 0x080E3E90, LENGTH = 0x8000 }
+/* ported to the bitbox MK2 2.3.4 by tools/port_mk2.py */
+/* Code cave: appended directly after the stock bitbox MK2 2.3.4 image (674896 bytes, ends at 0x080E4C50).
+   The MK2 bootloader takes a longer image (vwal's 2.3.4+c ends at 0x080EA184 and runs); its upper limit is not known,
+   so the cave is kept small and its size is reported by patch.py. */
+MEMORY { CAVE (rx) : ORIGIN = 0x080E4C50, LENGTH = 0x8000 }
 SECTIONS {
   .cave : { *(.text .text.* .rodata .rodata.*) } > CAVE
   /* No RAM: the cave has no startup code, so initialised or zeroed globals would never be set up. */
