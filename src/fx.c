@@ -162,6 +162,8 @@ static float level_gain(int v)
 }
 
 /* --- FX returns ---------------------------------------------------------------------------------------------------- */
+void fx3_process(void *dst);                             /* fx3.c */
+
 /* which: 0 = FX1 (delay, bus 0xa), 1 = FX2 (reverb, bus 0xb); bus0 = bus 0 (as the stock call) */
 void fx_return(void *bus0, void *src, void *engine, int which)
 {
@@ -186,6 +188,8 @@ void fx_return(void *bus0, void *src, void *engine, int which)
     void *dst = dest ? fw_bus(engine, dest) : bus0;
     float g = which == 0 ? level_gain(rec_get(P_DLEVEL, 500, 1000)) : 1.0f;
     fw_mix_gain(dst, src, g);
+    if (which == 1)
+        fx3_process(dst);                                /* FX3 (fx3.c) goes where the reverb goes */
 }
 
 /* --- delay: modulation and tape colour ---------------------------------------------------------------------------- */

@@ -93,7 +93,7 @@ POS = [0x6F, 0xB4, 0x2A, 0x76]
 # FX1 Send / FX2 Send at the end of the Pos list (Multisample: Conf list, it has no Pos page): numeric %, and a MOD
 # indicator like Start / Length if the firmware lets them be modulated. Stock shows the sends only as bars on the FX
 # screen (forum wish: "mix % per cell"). Pan is already on the Conf list, with modulation.
-P_FX1, P_FX2 = 0xBB, 0xBC
+P_FX1, P_FX2, P_FX3 = 0xBB, 0xBC, 0x1C8
 
 
 def sends_patch(table, page):
@@ -102,8 +102,7 @@ def sends_patch(table, page):
     n = ids.index(0)
     if table in CLIP_TABLES and page == 1:
         n += 5                                       # after the clip tools (Shift .. Loop Fade), patched below
-        return (at + 2 * n, bytes(6), struct.pack("<3H", P_FX1, P_FX2, 0))
-    return (at + 2 * n, bytes(6), struct.pack("<3H", P_FX1, P_FX2, 0))
+    return (at + 2 * n, bytes(8), struct.pack("<4H", P_FX1, P_FX2, P_FX3, 0))
 
 
 def lfo_patch(table):

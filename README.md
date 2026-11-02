@@ -9,7 +9,7 @@ address translation; the UI is placed anew for the MK2's screens and its two key
 > Unofficial. Not affiliated with or supported by 1010music. Running modified firmware is at your own risk and may
 > affect your warranty. Keep your stock `BITBOXMK2.bin` and flash it back before sending a unit in for service.
 
-## Status: build 2.3.4-sD
+## Status: build 2.3.4-sE
 
 **emulation** = verified in the Unicorn tests and the Renode simulation of the MK2, **not yet on a unit**.
 Nothing here is hardware-tested yet.
@@ -31,10 +31,10 @@ Nothing here is hardware-tested yet.
 | **Reverb page 2** (Type "Hall >"): Bass Mult, Crossover, Mod Rate, Mod Depth, Width, Hi Cut, Lo Cut | FX2 cell → INFO | emulation |
 | **Compressor bus**: Off / Out1/2 / FX1/2 / Both | Tools → Main "Compressor:" | emulation |
 | **FX1 / FX2 Send** as numeric % rows | pad → Pos list (Multisample: Conf) | emulation |
-| Splash / Menu version **semi mod 2.3.4-sD** | boot, Menu lower right | emulation |
+| **FX3** third send (reverb, all types, two pages): touch the selected FX2 cell again -> **FX 3**; **FX3 Send** in the Pos list | pad grid, FX2 column; INFO | emulation (Renode audio + Unicorn) |
+| Splash / Menu version **semi mod 2.3.4-sE** | boot, Menu lower right | emulation |
 
-Not ported yet: FX3 (third send) and the recording sends / monitor (their cells sit on the micro's Effects screen
-behind its arrow keys; the MK2 FX screen needs its own placement), pads 9–16 (not needed: the MK2 has 16 pads).
+Not ported yet: the recording sends / monitor (recmon.c), pads 9–16 (not needed: the MK2 has 16 pads).
 
 **Two-page FX cells:** the FX cell page shows eight controls. Delay and reverb carry their second page in the Type
 list: "Tape" shows the delay's stock controls with Type in the last slot, "Tape >" the new ones (Type in the same
@@ -53,8 +53,8 @@ work also the micro 2.3.4 `MICRO.BIN` (SHA-256 `54ecc3e5…4365`). Optional: [Re
 ```sh
 ./setup.sh
 ./build.sh                                                   # src/ -> out/cave.elf, out/cave.bin
-.venv/bin/python -I patch.py fidelity pages sound reverb fixes master fx cave
-                      # -> out/fidelity+pages+sound+reverb+fixes+master+fx+cave/BITBOXMK2.bin
+.venv/bin/python -I patch.py fidelity pages sound reverb fixes master fx fx3 cave
+                      # -> out/fidelity+pages+sound+reverb+fixes+master+fx+fx3+cave/BITBOXMK2.bin
 .venv/bin/python -I tests/test_fidelity.py                   # Unicorn tests on the patched image
 .venv/bin/python -I tests/test_reverb.py
 .venv/bin/python -I tests/test_ram.py
@@ -65,14 +65,14 @@ work also the micro 2.3.4 `MICRO.BIN` (SHA-256 `54ecc3e5…4365`). Optional: [Re
 
 `patch.py` only writes an image when every check passes: stock hash, expected stock bytes at every patch site, zero
 repack, every change inside a registered range, every redirected call lands on a function of ours, every caller of a
-replaced function is hooked. Build sD: 705,220 bytes (cave 30,324 bytes, ends 0x080EC2C4). The MK2 bootloader's upper limit is not known: vwal's
+replaced function is hooked. Build sE: 706,850 bytes (cave 31,954 bytes). The MK2 bootloader's upper limit is not known: vwal's
 2.3.4+c (696,708 bytes) is known to run; the flash bank ends at 0x08100000 (786,432 bytes from the load base).
 
 ### Simulation (Renode)
 
 ```sh
 .venv/bin/python -I sim/mk2_card.py out/sim/mk2_sd.img       # test card: one preset, Sample / Clip / Slicer / Granular
-cp out/fidelity+pages+sound+reverb+fixes+master+fx+cave/BITBOXMK2.bin out/mk2/
+cp out/fidelity+pages+sound+reverb+fixes+master+fx+fx3+cave/BITBOXMK2.bin out/mk2/
 .venv/bin/python -I sim/run.py --image semi --repl mk2.repl --sd out/sim/mk2_sd.img \
     wait 10 shot pads tap 30 210 0.15 wait 0.8 press K1 wait 1 press K1 wait 1 shot params
 ```

@@ -10,12 +10,13 @@ Builds (portkit's micro history up to pkZD: portkit-micro CHANGELOG.md):
   C = master section: compressor settings (Stock / SSL, Mix) and master distortion on Tools tabs Comp / Cmp2 / Dist
   D = FX: return routing (FX Out) and Delay Level, delay types Digital / Tape / BBD with modulation and loop colour,
       two-page delay and reverb cells, Compressor bus (Out1/2, FX1/2, Both), numeric FX sends in the Pos list
+  E = FX3: a third send (reverb, every type) on the FX2 cell (second touch: FX 3), FX3 Send in the Pos list
 """
 import os
 
 from thumb import ROOT, STOCK_END
 
-BUILD = b"D"
+BUILD = b"E"
 
 
 def slot(text, size=16):

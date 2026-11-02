@@ -218,5 +218,33 @@ check("delay line reads (4) and writes (5) hooked",
 check("Tools -> Rec tab: FX Out in the fourth slot",
       struct.unpack_from("<4H", IMG, 0x080C7EBC + 16 - BASE) == (0x7F, 0x17B, 0xC2, P_FX_OUT))
 
+# --- FX3 (fx3.c, patches/fx3.py)
+if "fx3_set_cell" in SYM:
+    check("FX3: pad mixes, grid label, set-cell hooked; check thunks; row-3 records made reverb records (8 sites)",
+          bl_at(0x080B3658) == SYM["fx3_mix_a"] & ~1 and bl_at(0x080B916E) == SYM["fx3_mix_b"] & ~1
+          and bl_at(0x08072130) == SYM["fx3_label"] & ~1 and bl_at(0x08080AC8) == SYM["fx3_set_cell"] & ~1
+          and bl_at(0x080B2438) == SYM["fx3_check_a"] & ~1 and bl_at(0x080B8EB4) == SYM["fx3_check_b"] & ~1
+          and all(IMG[a - BASE:a - BASE + 2] == bytes.fromhex("4423") for a in
+                  (0x0807A1F8, 0x0807E25C, 0x08083788, 0x0808ACD0, 0x0808B0E4, 0x0808DF38, 0x0807CC36, 0x0807CC5C)))
+    widget = e.new(0x1A0)
+    e.stub(0x0805D8CC, lambda uc: None)
+    fx2 = e.new(8)
+    e.mu.mem_write(fx2, b"FX 2\0")
+    e.w32(0x2406CE00, 0)
+    e.stub(0x08043BD0, lambda uc: uc.reg_write(UC_ARM_REG_R0, 0))      # no heap: FX3 stays off, the cell still works
+    e.call(SYM["fx3_label"], widget, fx2)
+    cells = []
+    e.stub(0x0807D0C8, lambda uc: cells.append(struct.unpack("<H", uc.mem_read(uc.reg_read(UC_ARM_REG_R1) + 4, 2))[0]))
+    app_cell = APP + 0x28
+    msg = e.new(0x20)
+    def touch(cur, cell):
+        e.mu.mem_write(app_cell, struct.pack("<H", cur))
+        e.mu.mem_write(msg + 4, struct.pack("<H", cell))
+        e.call(SYM["fx3_set_cell"], APP, msg)
+        return cells[-1], struct.unpack("<H", e.mu.mem_read(widget + 0x38, 2))[0]
+    check("FX3 cell: first touch selects FX2; second touch -> FX3 (widget id 0x330); again -> FX2; other cells pass",
+          touch(0x100, 0x310)[0] == 0x310 and touch(0x310, 0x310) == (0x330, 0x330) and touch(0x330, 0x330) == (0x310, 0x310)
+          and touch(0x310, 0x300)[0] == 0x300)
+
 print(f"\n{'FAILED: ' + str(failures) if failures else 'all passed'}")
 sys.exit(1 if failures else 0)

@@ -1,11 +1,10 @@
-/*
- * FX3 (fx3.c) hooks in the pad block processes:
- * - the "any send on" checks, `vldr s15, [rX]` (FX1 Send gain) at 0x080b13e0 (sample pads, rX = r6, pad r4) and
- *   0x080b7d8c (clip pads, rX = fp, pad r4): s15 = FX1 Send; if that is 0 and FX3 Send is on, 1.0 (flags are set by
+/* [mk2]
+ * FX3 (fx3.c) hooks in the pad block processes (bitbox MK2 2.3.4; micro sites in portkit):
+ * - the "any send on" checks, `vldr s15, [rX]` (FX1 Send gain) at 0x080b2438 (sample pads, rX = r6, pad r4) and
+ *   0x080b8eb4 (clip pads, rX = fp, pad r4): s15 = FX1 Send; if that is 0 and FX3 Send is on, 1.0 (flags are set by
  *   the vcmp after). Everything else kept.
- * - the final mix 0x080a3328(out, scratch) at 0x080b2600 (engine sb) and 0x080b8046 (engine r8):
+ * - the final mix 0x080a46d0(out, scratch) at 0x080b3658 (engine sb) and 0x080b916e (engine r8):
  *   fx3_padmix(out, scratch, pad r4, engine).
- * - the block driver's bus 0 += bus 0xe at 0x08096d04 -> fx3_master (plain call, same arguments).
  */
     .syntax unified
     .thumb

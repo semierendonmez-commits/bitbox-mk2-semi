@@ -4,6 +4,13 @@
 
 Builds for the **bitbox MK2** on top of the stock firmware **2.3.4**, named `2.3.4-s<build>`.
 
+### 2.3.4-sE (2026-11-03)
+
+- **FX3**: a third send effect, a reverb with every reverb type and both pages (portkit's FX3, MK2 placement). On the
+  pad grid touch FX2 once to select it, once more and the cell becomes **FX 3** (again: back to FX2); INFO opens its
+  page. **FX3 Send** is the third send row in the Pos list. FX3 goes where the reverb goes (FX Out). It needs 4.5 MB of
+  free heap at boot (plate and pre-delay memory), otherwise it stays silent.
+
 ### 2.3.4-sD (2026-11-03)
 
 - **FX Out** (Tools -> Rec, its free fourth slot): where the FX returns go: Out1/2 (stock), Dly FX1/2, Rvb FX1/2,
