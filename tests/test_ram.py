@@ -3,12 +3,13 @@ must not overlap, and all must stay in the block reserved for it.
 
 Since sL the patch RAM is the top 24 KB of DTCM, 0x2001a000..0x2001ffff, reserved by lowering the firmware's DTCM
 allocator limit (0x08043b88: bump allocator over 0x20000000, 0x20000 -> 0x1a000; bigger requests fall back to malloc,
-then SDRAM, as before; patches/cave.py). Before (sA..sK) it sat in AXI RAM above the initial stack pointer,
-0x2406b000..0x2406f940, which the Renode run showed unused - but that is the arena of the firmware's top-down DMA
-allocator (0x08046cb8: from 0x24080000 down, up to 0x20000 bytes, MPU device memory 0x24060000..0x2407ffff). On a
-unit the builds that write there every audio block (master, fx3) did not boot (black screen after the update; sT3
-without them booted, sT4 with them did not). Renode used 0xf240 of that arena (down to 0x24070dc0); the unit
-evidently more. In Renode, DTCM use by the allocator reached 0xea30.
+then SDRAM, as before) and zeroed at boot before anything else runs (src/boot.S, at the reset handler's first call;
+patches/cave.py). Before (sA..sK) it sat in AXI RAM above the initial stack pointer (0x2406b000..0x2406f940, inside
+the arena of the firmware's top-down DMA allocator 0x08046cb8, which Renode showed reaching only 0x24070dc0) and was
+never cleared. Renode starts with zeroed RAM, a unit does not: modsrc.c's ENV table (a pad pointer per slot) was read
+before anything wrote it, and the builds that run it every block (master's master_dist) did not boot on a unit
+(hardware bisect: sT3 boots, sT8 = sT3 + master does not; Renode with RAM filled with a pattern shows the same
+black screen). sim/run.py now fills DTCM and AXI RAM with a pattern before boot (SIM_ZERO_RAM=1: zeros).
 
   python3 -I tests/test_ram.py
 """

@@ -61,6 +61,11 @@ def build(image, sd, actions, repl="micro.repl", bank2=None):
              f"$bin=@{image}", f"$repl=@{os.path.join(SIM, repl)}", f"include @{os.path.join(SIM, 'boot.resc')}"]
     if bank2:                                            # flash bank 2 as the card loader would leave it (JOEBOX)
         lines.append(f"sysbus LoadBinary @{os.path.abspath(bank2)} 0x08100000")
+    if repl == "mk2.repl" and os.environ.get("SIM_ZERO_RAM") != "1":
+        # a unit starts with garbage in RAM (or the last run's data after a reset), Renode with zeros: fill DTCM and
+        # AXI SRAM with a pattern so code that reads its state before setting it fails here too (sK's black screen)
+        lines.append('python "b=self.Machine.SystemBus; [b.WriteDoubleWord(a, (a * 2654435761) & 0xffffffff) for a in '
+                     'list(range(0x20000000, 0x20020000, 4)) + list(range(0x24000000, 0x24080000, 4))]"')
     keys = BUTTONS if repl == "micro.repl" else MK2_BUTTONS if repl == "mk2.repl" else BB_BUTTONS
     for port, pin in keys.values():
         lines.append(f"sysbus.{port} OnGPIO {pin} true")

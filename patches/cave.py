@@ -15,10 +15,13 @@ Builds (portkit's micro history up to pkZD: portkit-micro CHANGELOG.md):
   G = Slice Str: Cut / Stretch (WSOLA) / Tape (varispeed) for synced slices
   H = screen saver with a live monitor (scope, meters), wake on touch / keys / MIDI; Tools -> More with pages
   I = MOD sources KEY (keyboard tracking) and ENV (the pad's envelope)
+  J = double tap -> default, vertical waveform zoom, CV In scale / offset, CV pitch quantizer
+  K = GEN generative sequencer with step conditions
+  L = patch RAM moved to the top of DTCM and zeroed at boot (sA..sK did not boot on a unit)
 """
 import os
 
-from thumb import ROOT, STOCK_END
+from thumb import ROOT, STOCK_END, bl, symbols
 
 BUILD = os.environ.get("SEMI_TAG", "L").encode()   # SEMI_TAG: test builds (sT1 ..)
 
@@ -31,7 +34,12 @@ def slot(text, size=16):
 VERSION = b"2.3.4-s" + BUILD
 assert len(VERSION) <= 10, "keep the version short (the micro panel showed 10 characters; MK2 Menu: to check)"
 
-PATCHES = [
+sym = symbols(os.path.join(ROOT, "out", "cave.elf"))
+SYSTEM_INIT = 0x08054824
+HOOKS = [(0x08040518, SYSTEM_INIT, "boot_zero")]     # reset handler's first call: zero the patch RAM first
+EXCLUSIVE = {SYSTEM_INIT}
+
+PATCHES = [(at, bl(at, stock), bl(at, sym[name])) for at, stock, name in HOOKS] + [
     (0x080C68EC, slot(b"by 1010music"), slot(b"semi mod")),
     (0x080C68FC, slot(b"2.3.4"), slot(VERSION)),
     # patch RAM: the top 24 KB of DTCM (0x2001a000..0x2001ffff, tests/test_ram.py). The DTCM bump allocator
