@@ -34,7 +34,7 @@ P_D_TYPE, P_D_DRIVE, P_D_TONE, P_D_MIX, P_D_LEVEL = 0x1A7, 0x1A8, 0x1A9, 0x1AB, 
 # shown 2 x 2, column-wise: [top left, bottom left, top right, bottom right]
 TABS = [
     ("tab_comp", [P_C_TYPE, P_C_THRESH, P_C_RATIO, P_C_MIX]),
-    ("tab_comp2", [P_C_ATTACK, P_C_REL, P_C_GAIN, P_D_LEVEL]),
+    ("tab_comp2", [P_C_ATTACK, P_C_REL, P_C_GAIN, P_D_LEVEL]),   # "More": master_tools_page fills it by Page
     ("tab_dist", [P_D_TYPE, P_D_DRIVE, P_D_TONE, P_D_MIX]),
 ]
 

@@ -48,8 +48,8 @@ def put(pid, v):
 e.stub(0x08045012, lambda uc: None)                       # its last call (not about the store)
 e.call(0x08089CBC, SET)
 cnt, ids = store_ids(SET)
-check("settings store: 36 stock entries + 15 new + FX Out (52 of 64), 0x17b (the hooked add) still there",
-      cnt == 52 and 0x17B in ids and 0x96 in ids, cnt)
+check("settings store: 36 stock entries + 15 new + FX Out + Saver, View, More Page (55 of 64), 0x17b still there",
+      cnt == 55 and 0x17B in ids and 0x96 in ids, cnt)
 check("new entries with defaults: compressor = stock (-4 dB, 4:1, 10 ms, 250 ms, -4 dB), distortion Off / 12 dB / "
       "Tone open / Mix 100 % / Level 0 dB",
       [ids.get(COMP[k]) for k in ("thresh", "ratio", "attack", "release", "gain")] == [-4000, 4, 10, 250, -4000]
@@ -59,7 +59,7 @@ check("new entries with defaults: compressor = stock (-4 dB, 4:1, 10 ms, 250 ms,
 # --- MK2 Tools tabs (patches/master.py): labels and ids as data, the SSL swap in master_tools_page (real builder)
 LABELS, IDS = 0x080C7EA4, 0x080C7EBC   # [mk2]
 labels = [e.cstr(e.r32(LABELS + 4 * k)) for k in range(6)]
-check("Tools tab labels: Main, Rec, MIDI, Comp, Cmp2, Dist", labels == ["Main", "Rec", "MIDI", "Comp", "Cmp2", "Dist"], labels)
+check("Tools tab labels: Main, Rec, MIDI, Comp, More, Dist", labels == ["Main", "Rec", "MIDI", "Comp", "More", "Dist"], labels)
 tab_ids = [list(struct.unpack_from("<4H", IMG, IDS + 16 * t - 0x08040000)) for t in range(6)]
 check("tabs 3..5: Comp [Type, Threshold, Ratio, Mix], Cmp2 [Attack, Release, Gain, Dist Level], "
       "Dist [Type, Drive, Tone, Mix]",
@@ -77,14 +77,22 @@ def tools_tab(tab):
 put(0x19D, 0)
 ids3, vals3 = tools_tab(3)
 ids4, _ = tools_tab(4)
-check("Stock: Comp tab shows Ratio (0x1a2) with its value, Cmp2 Attack / Release ms",
-      ids3 == [0x19D, 0x1A1, 0x1A2, 0x19E] and vals3[2] == get(0x1A2) and ids4[:2] == [0x1A3, 0x1A5], (ids3, vals3, ids4))
+check("Stock: Comp tab shows Ratio (0x1a2) with its value; More (page Comp 2): Page, Attack, Release, Gain",
+      ids3 == [0x19D, 0x1A1, 0x1A2, 0x19E] and vals3[2] == get(0x1A2) and ids4 == [0x1BA, 0x1A3, 0x1A5, 0x1A6],
+      (ids3, vals3, ids4))
+put(0x1BA, 1)
+ids4b, _ = tools_tab(4)
+put(0x1BA, 2)
+ids4c, vals4c = tools_tab(4)
+put(0x1BA, 0)
+check("More: page Dist 2 = Dist Lvl; page Saver = Saver (default 5 min), View",
+      ids4b == [0x1BA, 0x1AC, 0, 0] and ids4c == [0x1BA, 0x1B8, 0x1B9, 0] and vals4c[:3] == [2, 3, 0], (ids4b, ids4c, vals4c))
 put(0x19D, 1)
 ids3, vals3 = tools_tab(3)
 ids4, vals4 = tools_tab(4)
 check("SSL: Comp tab shows the ratio switch (0x19f), Cmp2 the attack / release switches (0x17d / 0x17f) with values",
-      ids3 == [0x19D, 0x1A1, 0x19F, 0x19E] and ids4[:2] == [0x17D, 0x17F] and vals3[2] == get(0x19F)
-      and vals4[:2] == [get(0x17D), get(0x17F)], (ids3, vals3, ids4, vals4))
+      ids3 == [0x19D, 0x1A1, 0x19F, 0x19E] and ids4[1:3] == [0x17D, 0x17F] and vals3[2] == get(0x19F)
+      and vals4[1:3] == [get(0x17D), get(0x17F)], (ids3, vals3, ids4, vals4))
 check("SSL defaults: mix glue 2:1 (0), attack 30 ms (5), release Auto (4)", [get(0x19F), get(0x17D), get(0x17F)] == [0, 5, 4])
 msg = e.new(8)
 e.mu.mem_write(msg + 4, struct.pack("<H", 0x140))

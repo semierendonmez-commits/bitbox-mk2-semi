@@ -4,6 +4,15 @@
 
 Builds for the **bitbox MK2** on top of the stock firmware **2.3.4**, named `2.3.4-s<build>`.
 
+### 2.3.4-sH (2026-11-03)
+
+- **Screen saver with a live monitor**: after 1 / 2 / 5 (default) / 10 / 30 minutes without input (or Off) the screen
+  shows a sweeping oscilloscope of Out1/2 with level meters (View: Scope / Meters / Dark). A touch wakes it (that touch
+  does nothing else), as do the keys and any MIDI note / message (MIDI clock alone keeps it asleep). The UI's own
+  screen is not touched: the saver only points the display at a buffer of its own and back.
+- **Tools -> More** (was Cmp2): a Page list (Comp 2: Attack / Release / Gain; Dist 2: Dist Lvl; Saver: Saver / View).
+  Turning Page shows the tab again with that page's settings.
+
 ### 2.3.4-sG (2026-11-03)
 
 - **Slice Str** (Slicer Pos list, after Sync Grid; with Sync On): how a slice fills its synced duration.

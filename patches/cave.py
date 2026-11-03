@@ -13,12 +13,13 @@ Builds (portkit's micro history up to pkZD: portkit-micro CHANGELOG.md):
   E = FX3: a third send (reverb, every type) on the FX2 cell (second touch: FX 3), FX3 Send in the Pos list
   F = Slicer Sync Grid (slice durations on a 1 bar .. 1/32 grid with Sync On)
   G = Slice Str: Cut / Stretch (WSOLA) / Tape (varispeed) for synced slices
+  H = screen saver with a live monitor (scope, meters), wake on touch / keys / MIDI; Tools -> More with pages
 """
 import os
 
 from thumb import ROOT, STOCK_END
 
-BUILD = b"G"
+BUILD = b"H"
 
 
 def slot(text, size=16):

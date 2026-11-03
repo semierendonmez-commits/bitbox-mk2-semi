@@ -72,6 +72,10 @@ int fast_get(const void *store, unsigned param);       /* fastget.c: 0x08089388 
 #define P_D_MIX    0x1ab
 #define P_D_LEVEL  0x1ac
 
+#define P_SAVER    0x1b8                                    /* ss.c: screen saver time */
+#define P_SSVIEW   0x1b9                                    /* ss.c: Scope / Meters / Dark */
+#define P_MPAGE    0x1ba                                    /* Tools -> More: page */
+
 #define FS         48000.0f
 #define SR_MS      48                                       /* samples per ms */
 
@@ -84,6 +88,10 @@ static const char *const sratio_names[] = {"2:1", "4:1", "10:1"};
 static const char *const sattack_names[] = {"0.1 ms", "0.3 ms", "1 ms", "3 ms", "10 ms", "30 ms"};
 static const char *const srel_names[] = {"0.1 s", "0.3 s", "0.6 s", "1.2 s", "Auto"};
 enum { C_STOCK, C_SSL, C_TYPES };
+static const char *const saver_names[] = {"Off", "1 min", "2 min", "5 min", "10 min", "30 min"};
+static const char *const ssview_names[] = {"Scope", "Meters", "Dark"};
+static const char *const mpage_names[] = {"Comp 2", "Dist 2", "Saver"};
+#define MPAGES 3
 
 /* type 0: a list (names, max = count) */
 struct pdef { uint16_t id; uint8_t type; const char *label; int min, max, def; const char *xml; const char *const *names; };
@@ -102,7 +110,10 @@ static const struct pdef pdefs[] = {
     {P_D_DRIVE, 7, "Drive:", 0, 36000, 12000, "pkddrive", 0},
     {P_D_TONE, 10, "Tone:", 0, 1000, 1000, "pkdtone", 0},               /* type 10: Hz, the stock cutoff curve */
     {P_D_MIX, 8, "Mix:", 0, 1000, 1000, "pkdmix", 0},
-    {P_D_LEVEL, 7, "Dist Lvl:", -24000, 12000, 0, "pkdlevel", 0},  /* MK2: on the Comp2 tab */
+    {P_D_LEVEL, 7, "Dist Lvl:", -24000, 12000, 0, "pkdlevel", 0},  /* MK2: Tools -> More, page Dist 2 */
+    {P_SAVER, 0, "Saver:", 0, 6, 3, "semisaver", saver_names},      /* default 5 min */
+    {P_SSVIEW, 0, "View:", 0, 3, 0, "semisaverview", ssview_names},
+    {P_MPAGE, 0, "Page:", 0, MPAGES, 0, "semimorepage", mpage_names},
 };
 #define NPDEFS (int)(sizeof pdefs / sizeof pdefs[0])
 
@@ -158,9 +169,31 @@ static void swap_id(uint8_t *out, unsigned from, unsigned to)
     }
 }
 
+/* Tools -> More (tab 4, was Cmp2): a Page list and three settings of that page */
+static const uint16_t more_pages[MPAGES][3] = {
+    {0x1a3, 0x1a5, 0x1a6},                                  /* Comp 2: Attack, Release, Gain */
+    {0x1ac, 0, 0},                                          /* Dist 2: Dist Lvl */
+    {P_SAVER, P_SSVIEW, 0},                                 /* Saver */
+};
+
+static void set_slot(uint8_t *out, int k, unsigned id)
+{
+    *(uint16_t *)(out + 2 + 2 * k) = (uint16_t)id;
+    *(int32_t *)(out + 0x14 + 4 * k) = id ? fw_store_get(SETTINGS, id) : 0;
+}
+
 int master_tools_page(void *app, const void *msg, uint8_t *out, int tab)
 {
     int r = fw_tools_page(app, msg, out, tab);
+    if (*(const uint16_t *)((const uint8_t *)msg + 4) == TOOLS_CODE && tab == TAB_COMP2) {
+        int pg = fw_store_get(SETTINGS, P_MPAGE);
+        pg = pg < 0 || pg >= MPAGES ? 0 : pg;
+        set_slot(out, 0, P_MPAGE);
+        for (int k = 0; k < 3; k++)
+            set_slot(out, k + 1, more_pages[pg][k]);
+        for (int k = 4; k < 8; k++)
+            set_slot(out, k, 0);
+    }
     if (*(const uint16_t *)((const uint8_t *)msg + 4) == TOOLS_CODE && (tab == TAB_COMP || tab == TAB_COMP2)
         && fw_store_get(SETTINGS, P_C_TYPE) == C_SSL) {
         swap_id(out, P_C_RATIO, P_S_RATIO);
@@ -401,8 +434,11 @@ static float run1(struct dch *c, int type, float in, float drive, float tone_a, 
 }
 
 /* master_thunk.S at 0x08098190 (bus 0 = r4): bus 0 through the distortion */
+void ss_audio(void *bus0);                               /* ss.c: screen saver monitor and timer */
+
 void master_dist(void *bus0)
 {
+    ss_audio(bus0);
     struct dist *d = DS;
     int type = fw_store_get(SETTINGS, P_D_TYPE);
     if (type <= D_OFF || type >= D_TYPES) {
@@ -590,5 +626,5 @@ static void ssl_run(void *bus, struct sslst *s, const struct cset *c)
    copies 7 characters) */
 const char tab_midi[] = "MIDI";            /* stock "MIDIIn" no longer fits with six tabs */
 const char tab_comp[] = "Comp";
-const char tab_comp2[] = "Cmp2";
+const char tab_comp2[] = "More";            /* Comp 2, Dist 2, Saver pages (Page list) */
 const char tab_dist[] = "Dist";

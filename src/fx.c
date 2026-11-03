@@ -401,6 +401,12 @@ typedef void (*screen_fn)(void *app, unsigned screen, unsigned a, unsigned b);
 void fx_knob(uint8_t *app, const void *msg, unsigned param, int value, int extra)
 {
     fw_knob(app, msg, param, value, extra);
+    if (param == 0x1ba) {                               /* Tools -> More: Page (master.c): show the tab again */
+        uint8_t prev = app[SCREEN_ID + 1];
+        fw_screen(app, app[SCREEN_ID], 0, 0);
+        app[SCREEN_ID + 1] = prev;
+        return;
+    }
     if ((param == P_DTYPE || param == P_RVB_TYPE) && app[SCREEN_ID] == SCR_FXCELL) {
         uint8_t prev = app[SCREEN_ID + 1];
         fw_screen(app, SCR_FXCELL, 0, 0);

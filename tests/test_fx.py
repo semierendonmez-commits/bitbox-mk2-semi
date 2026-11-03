@@ -264,5 +264,30 @@ if "slicer_len" in SYM:
     del e.stubs[SYM["pad_setting"] & ~1]
     check("slice voice start: bl at 0x080b5aaa -> slicer_len_thunk", bl_at(0x080B5AAA) == SYM["slicer_len_thunk"] & ~1)
 
+# --- screen saver (ss.c, patches/ss.py)
+if "ss_dispatch" in SYM:
+    check("saver: dispatcher (3 sites), HAL_LTDC_SetAddress (2), UART RxISR pointer (2) hooked",
+          all(bl_at(a) == SYM["ss_dispatch"] & ~1 for a in (0x08071530, 0x080810D4, 0x08082542))
+          and all(bl_at(a) == SYM["ss_set_address"] & ~1 for a in (0x08043666, 0x08043686))
+          and all(struct.unpack_from("<I", IMG, a - BASE)[0] == SYM["ss_rx_isr"] | 1 for a in (0x0804E9B8, 0x0804EB44)))
+    seen_cmd = []
+    e.stub(0x0808073C, lambda uc: seen_cmd.append(struct.unpack("<H", uc.mem_read(uc.reg_read(UC_ARM_REG_R1), 2))[0]))
+    e.mu.mem_map(0x50001000, 0x1000)                        # LTDC registers (wake writes them)
+    ss = 0x2406D0C0
+    e.w32(ss, 0x53415652)                                   # magic
+    e.w32(ss + 8, 1234)                                     # idle
+    m = e.new(0x20)
+    def disp(cmd, on):
+        e.mu.mem_write(ss + 0x14, bytes([on]))
+        e.mu.mem_write(m, struct.pack("<H", cmd))
+        e.call(SYM["ss_dispatch"], APP, m)
+    disp(3, 1)                                              # saver on: the touch wakes it and is swallowed
+    on_after = e.mu.mem_read(ss + 0x14, 1)[0]
+    disp(4, 0)                                              # its release swallowed too
+    disp(3, 0)                                              # an ordinary touch passes and resets the idle count
+    check("saver: a touch while it runs wakes it and is swallowed (press and release); later touches pass, idle reset",
+          on_after == 0 and seen_cmd == [3] and e.r32(ss + 8) == 0, (on_after, seen_cmd, e.r32(ss + 8)))
+    del e.stubs[0x0808073C]
+
 print(f"\n{'FAILED: ' + str(failures) if failures else 'all passed'}")
 sys.exit(1 if failures else 0)

@@ -9,7 +9,7 @@ address translation; the UI is placed anew for the MK2's screens and its two key
 > Unofficial. Not affiliated with or supported by 1010music. Running modified firmware is at your own risk and may
 > affect your warranty. Keep your stock `BITBOXMK2.bin` and flash it back before sending a unit in for service.
 
-## Status: build 2.3.4-sG
+## Status: build 2.3.4-sH
 
 **emulation** = verified in the Unicorn tests and the Renode simulation of the MK2, **not yet on a unit**.
 Nothing here is hardware-tested yet.
@@ -24,7 +24,7 @@ Nothing here is hardware-tested yet.
 | **Reverb types** Plate / Room / Hall / Chamber with ten settings and **Level** | FX2 → INFO (Type, Level shown on Plate) | emulation (Plate page) |
 | **CPU load** after the free-memory text | status bar (e.g. `243M  34%`) | emulation (the simulator's load value is not meaningful) |
 | **Fix: Clip / Slicer Poly Mode Mono honoured** (stock: a saved Sample Poly Mode overrides it, slices overlap) | Conf list | emulation (Renode + Unicorn) |
-| **Master compressor** settings: Comp Type Stock / SSL (SSL: ratio 2/4/10, attack 0.1–30 ms, release 0.1–1.2 s / Auto), Threshold, Ratio, Attack, Release, Gain, **Mix** (parallel) | Tools → **Comp**, **Cmp2** tabs (Compressor On/Off stays on Main) | emulation |
+| **Master compressor** settings: Comp Type Stock / SSL (SSL: ratio 2/4/10, attack 0.1–30 ms, release 0.1–1.2 s / Auto), Threshold, Ratio, Attack, Release, Gain, **Mix** (parallel) | Tools → **Comp** tab and **More** → Comp 2 (Compressor list stays on Main) | emulation |
 | **Master distortion** Soft / Hard / Fold / Tube, 2x oversampled: Drive, Tone, Mix, Level (Dist Lvl on Cmp2) | Tools → **Dist** tab | emulation |
 | **FX Out**: FX returns to Out1/2 (stock), Dly FX1/2, Rvb FX1/2, FX1/2, Dly1 Rvb2 | Tools → Rec (4th slot) | emulation (Renode audio + Unicorn) |
 | **Delay types** Digital / Tape / BBD; page 2 (Type "Tape >"): Mod Rate, Mod Depth, Flutter, Drive, Tone, **Level**, Mod Phase | FX1 cell → INFO | emulation |
@@ -34,7 +34,9 @@ Nothing here is hardware-tested yet.
 | **FX3** third send (reverb, all types, two pages): touch the selected FX2 cell again -> **FX 3**; **FX3 Send** in the Pos list | pad grid, FX2 column; INFO | emulation (Renode audio + Unicorn) |
 | **Slicer Sync Grid**: Free / 1 bar .. 1/32; with Sync On every slice lasts a whole number of grid steps | Slicer pad → Pos list, after Sync | emulation (Unicorn; Renode UI) |
 | **Slice Str**: Cut (stock) / Stretch (time stretch, pitch kept) / Tape (varispeed); slices fill their synced duration | Slicer pad → Pos list, after Sync Grid | emulation (Renode audio + Unicorn) |
-| Splash / Menu version **semi mod 2.3.4-sG** | boot, Menu lower right | emulation |
+| **Screen saver**: sweeping scope of Out1/2 + meters (Scope / Meters / Dark), 1–30 min or Off; wakes on touch (swallowed), keys, MIDI | Tools → More → Page: Saver | emulation (Renode screenshots + Unicorn) |
+| **Tools → More** (was Cmp2): Page list Comp 2 / Dist 2 / Saver | Tools | emulation |
+| Splash / Menu version **semi mod 2.3.4-sH** | boot, Menu lower right | emulation |
 
 Not ported yet: the recording sends / monitor (recmon.c), pads 9–16 (not needed: the MK2 has 16 pads).
 
@@ -55,8 +57,8 @@ work also the micro 2.3.4 `MICRO.BIN` (SHA-256 `54ecc3e5…4365`). Optional: [Re
 ```sh
 ./setup.sh
 ./build.sh                                                   # src/ -> out/cave.elf, out/cave.bin
-.venv/bin/python -I patch.py fidelity pages sound reverb fixes master fx fx3 cave
-                      # -> out/fidelity+pages+sound+reverb+fixes+master+fx+fx3+cave/BITBOXMK2.bin
+.venv/bin/python -I patch.py fidelity pages sound reverb fixes master fx fx3 ss cave
+                      # -> out/fidelity+pages+sound+reverb+fixes+master+fx+fx3+ss+cave/BITBOXMK2.bin
 .venv/bin/python -I tests/test_fidelity.py                   # Unicorn tests on the patched image
 .venv/bin/python -I tests/test_reverb.py
 .venv/bin/python -I tests/test_ram.py
@@ -74,7 +76,7 @@ replaced function is hooked. Build sE: 706,850 bytes (cave 31,954 bytes). The MK
 
 ```sh
 .venv/bin/python -I sim/mk2_card.py out/sim/mk2_sd.img       # test card: one preset, Sample / Clip / Slicer / Granular
-cp out/fidelity+pages+sound+reverb+fixes+master+fx+fx3+cave/BITBOXMK2.bin out/mk2/
+cp out/fidelity+pages+sound+reverb+fixes+master+fx+fx3+ss+cave/BITBOXMK2.bin out/mk2/
 .venv/bin/python -I sim/run.py --image semi --repl mk2.repl --sd out/sim/mk2_sd.img \
     wait 10 shot pads tap 30 210 0.15 wait 0.8 press K1 wait 1 press K1 wait 1 shot params
 ```

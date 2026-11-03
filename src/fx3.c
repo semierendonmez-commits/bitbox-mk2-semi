@@ -140,12 +140,15 @@ void fx3_init(void)
 
 /* --- the FX cell on the grid ------------------------------------------------------------------------------------ */
 /* the boot-time labels of the FX grid widgets (bl 0x0805d8cc at 0x08072130): note FX2's widget; FX3 set up */
+void ss_init(void);                                     /* ss.c */
+
 void fx3_label(uint8_t *widget, const char *text)
 {
     fw_set_text(widget, text);
     if (text[0] == 'F' && text[1] == 'X' && text[2] == ' ' && text[3] == '2' && !text[4])
         F3->fx2_widget = widget;
     fx3_init();
+    ss_init();
 }
 
 /* the dispatcher's set-cell (command 0x111): a second touch on the selected FX2 / FX3 cell switches between them */
