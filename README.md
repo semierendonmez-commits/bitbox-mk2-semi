@@ -6,6 +6,10 @@ vintage sampler modes and 24 dB filters from Justin Joe's [blackbox-mod](https:/
 The micro and the MK2 run the same 1010music framework at the same load base, so portkit's engine code ports by
 address translation; the UI is placed anew for the MK2's screens and its two keys (HOME, INFO).
 
+**Patch in your browser:** https://semierendonmez-commits.github.io/bitbox-mk2-semi/ (drop your stock 2.3.4
+`BITBOXMK2.bin`; the page holds only this project's bytes and checks both SHA-256 sums; nothing is uploaded).
+`tools/make_web.py` builds it from the tested build.
+
 > Unofficial. Not affiliated with or supported by 1010music. Running modified firmware is at your own risk and may
 > affect your warranty. Keep your stock `BITBOXMK2.bin` and flash it back before sending a unit in for service.
 

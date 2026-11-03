@@ -88,7 +88,11 @@ def main(argv):
     version = VERSION.decode()
     stock = open(STOCK, "rb").read()
     built = open(os.path.join(ROOT, "out", "+".join(SETS), IMAGE), "rb").read()
-    patch = webpatch.make("bitbox-mk2-semi", version, "2.3.4", stock, built, features=FEATURES)
+    from thumb import STOCK_END, symbols
+    sym = symbols(os.path.join(ROOT, "out", "cave.elf"))
+    allow = [(sym["mod_codes"] - STOCK_END - 4, sym["mod_codes"] - STOCK_END + 2 * 21,
+              "modsrc.c mod_codes: the stock MOD source code list (written out in our source) + KEY, ENV; with the zero padding before it")]
+    patch = webpatch.make("bitbox-mk2-semi", version, "2.3.4", stock, built, features=FEATURES, allow=allow)
     patch.update(title=f"{version}: everything", source_commit=commit + ("-dirty" if dirty else ""),
                  summary="All patch sets; the combination the tests cover.")
     assert webpatch.apply(patch, stock)["image"] == built
