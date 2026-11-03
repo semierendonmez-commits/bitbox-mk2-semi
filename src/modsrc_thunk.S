@@ -29,8 +29,9 @@ modsrc_pick_thunk:
 modsrc_route_thunk:
     cmp     r7, #0x1d
     beq     1f
-    cmp     r7, #0x30
-    beq     2f
+    sub     r3, r7, #0x30
+    cmp     r3, #3
+    bls     2f                          /* ENV, CHAOS, RAND, NET (0x30..0x33) */
     ldr     r3, =0x080af8b3
     bx      r3
 1:  ldr     r3, =0x080af741

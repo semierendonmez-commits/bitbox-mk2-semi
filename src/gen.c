@@ -76,11 +76,22 @@ int fast_get(const void *store, unsigned param);
 #define P_CUT    0x1fa                                /* Gen 3: Breakcut rearranges the sample (Start) */
 #define P_SCALE  0x1fb                                /* Gen 3: Call+Resp melody scale */
 #define P_RANGE  0x1fc                                /* Gen 3: Call+Resp melody range, semitones (0 = no pitch) */
+#define P_PROC   0x1fd                                /* Gen 4: Breakcut's cut procedure (BBCut) */
+#define P_ROLLS  0x1fe                                /* Gen 4: rolls Off / Normal / Dense / Fade */
+#define P_RECUT  0x1ff                                /* Gen 4: new cuts every cycle / 2 / 4 / 8 / locked */
+#define P_ACCENT 0x200                                /* Gen 5: Acid accents % */
+#define P_SLIDE  0x201                                /* Gen 5: Acid slides % */
+#define P_LOCK   0x202                                /* Gen 5: Turing lock -100..100 */
+#define P_MAPY   0x203                                /* Gen 6: Drummap Y (X = Rotate) */
+#define P_LEARN  0x204                                /* Gen 6: Learn: grid hits teach the Learn lanes */
+#define P_TURN   0x205                                /* Gen 6: phrase-end turns every 8 / 16 / 32 bars */
+#define P_RESP0  0x206                                /* Ln Resp: Call+Resp's response pad, one per lane */
 enum { L_ALGO, L_PAD, L_STEPS, L_HITS, L_ROT, L_RATE, L_COND, L_PROB, L_VEL, NLP };
 #define LP(l, k) (P_LANE0 + (l) * NLP + (k))
 
-enum { A_OFF, A_EUCLID, A_BREAK, A_CALL, A_EVOLVE, A_DRUM, A_RANDOM, NALGO };
-static const char *const algo_names[] = {"Off", "Euclid", "Breakcut", "Call+Resp", "Evolve", "Drummap", "Random"};
+enum { A_OFF, A_EUCLID, A_BREAK, A_CALL, A_EVOLVE, A_DRUM, A_RANDOM, A_ACID, A_TURING, A_LEARN, NALGO };
+static const char *const algo_names[] = {"Off", "Euclid", "Breakcut", "Call+Resp", "Evolve", "Drummap", "Random",
+                                         "Acid", "Turing", "Learn"};
 static const char *const onoff_names[] = {"Off", "On"};
 static const char *const epoch_names[] = {"Off", "4 bars", "8 bars", "16 bars", "32 bars"};
 static const uint8_t epoch_bars[] = {0, 4, 8, 16, 32};
@@ -99,6 +110,16 @@ static const char *const scale_names[] = {"Chromatic", "Major", "Minor", "Dorian
 static const uint16_t scale_mask[] = {0xfff, 0xab5, 0x5ad, 0x6ad, 0x5ab, 0xad5, 0x6b5, 0x9ad, 0x295, 0x4a9, 0x4e9, 0x555};
 #define NSCALE 12
 static const char *const cut_names[] = {"Off", "On"};
+enum { PR_BASIC, PR_CLASSIC, PR_CHOOSE, PR_JUNGLE, PR_WARP, PR_SQPUSH, PR_CAGE, PR_TIMELINE, PR_PERMUTE, PR_THRASH, NPROC };
+static const char *const proc_names[] = {"Basic", "Classic", "ChooseCut", "Jungle", "WarpCut", "SQPusher", "CageCut",
+                                         "Timeline", "Permute", "ThrashCut"};
+static const char *const rolls_names[] = {"Off", "Normal", "Dense", "Fade"};
+enum { RO_OFF, RO_NORMAL, RO_DENSE, RO_FADE };
+static const char *const recut_names[] = {"Every", "2 cycles", "4 cycles", "8 cycles", "Locked"};
+static const char *const turn_names[] = {"Off", "8 bars", "16 bars", "32 bars"};
+static const uint8_t turn_bars[] = {0, 8, 16, 32};
+static const char *const resp_names[] = {"Same", "Sel", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12",
+                                         "13", "14", "15", "16"};
 
 struct gpdef { uint16_t id; uint8_t type; const char *label; int min, max, def; const char *xml; const char *const *names; };
 static const struct gpdef gglobal[] = {
@@ -110,6 +131,19 @@ static const struct gpdef gglobal[] = {
     {P_CUT, 0, "Cut:", 0, 2, 1, "semigencut", cut_names},
     {P_SCALE, 0, "Scale:", 0, NSCALE, 9, "semigenscale", scale_names},
     {P_RANGE, 1, "Range:", 0, 24, 12, "semigenrange", 0},
+    {P_PROC, 0, "Proc:", 0, NPROC, PR_BASIC, "semigenproc", proc_names},
+    {P_ROLLS, 0, "Rolls:", 0, 4, RO_NORMAL, "semigenrolls", rolls_names},
+    {P_RECUT, 0, "Recut:", 0, 5, 0, "semigenrecut", recut_names},
+    {P_ACCENT, 1, "Accent %:", 0, 100, 30, "semigenaccent", 0},
+    {P_SLIDE, 1, "Slide %:", 0, 100, 20, "semigenslide", 0},
+    {P_LOCK, 1, "Lock:", -100, 100, 70, "semigenlock", 0},
+    {P_MAPY, 1, "Map Y:", 0, 31, 0, "semigenmapy", 0},
+    {P_LEARN, 0, "Learn:", 0, 2, 0, "semigenlearn", onoff_names},
+    {P_TURN, 0, "Turn:", 0, 4, 0, "semigenturn", turn_names},
+    {P_RESP0 + 0, 0, "Resp Pad:", 0, 18, 0, "semig1resp", resp_names},
+    {P_RESP0 + 1, 0, "Resp Pad:", 0, 18, 0, "semig2resp", resp_names},
+    {P_RESP0 + 2, 0, "Resp Pad:", 0, 18, 0, "semig3resp", resp_names},
+    {P_RESP0 + 3, 0, "Resp Pad:", 0, 18, 0, "semig4resp", resp_names},
 };
 #define NGLOBAL (int)(sizeof gglobal / sizeof gglobal[0])
 static const struct gpdef glane[NLP] = {
@@ -187,6 +221,12 @@ struct lane {
     uint32_t sel_cell;        /* Pad Sel: the last pad cell selected (+0x80000000 = valid) */
     uint32_t cut_cell;        /* Cut: the pad whose Start we moved (+0x80000000 = moved) */
     int32_t cut_orig;         /* its Start (frames) before */
+    int32_t sub_next, sub_dt; /* a roll's further hits inside the step: next song position, spacing */
+    uint32_t sub_cell;
+    uint8_t sub_left, sub_note, sub_vel, slide;   /* hits left; slide: this note ties into the next */
+    uint16_t reg;             /* Turing's shift register */
+    uint8_t reg_ok, pad1;
+    uint32_t shown;           /* this cycle's hits (the saver's Pulse) */
 };
 struct gen {
     uint32_t magic;
@@ -196,7 +236,21 @@ struct gen {
     struct lane lane[NL];
     int32_t log[16];          /* song position of the last 16 hits (lane << 28 | ticks; diagnostics) */
 };
-#define GS ((volatile struct gen *)0x2001c380u)
+_Static_assert(sizeof(struct gen) <= 0x200, "GEN state fits its slot");
+#define GS ((volatile struct gen *)0x2001e940u)
+
+/* Learn: what the grid taught each lane (RAM only): transitions between the gaps (steps) of successive hits, and how
+   often each step of the cycle was hit */
+struct learn {
+    uint8_t ioi[16][16];      /* [previous gap - 1][next gap - 1], counts (halved when one reaches 255) */
+    uint8_t phase[32];
+    int32_t last_step;        /* the last taught hit (lane steps), -1 none */
+    uint8_t last_ioi, any, pad[2];
+};
+#define GL ((volatile struct learn *)0x2001eb40u)
+#define LMAGIC 0x4c524e31u
+#define GL_MAGIC (*(volatile uint32_t *)0x2001efe0u)
+_Static_assert(4 * sizeof(struct learn) <= 0x4a0, "Learn tables fit their slot");
 #define GMAGIC 0x47454e31u
 
 static inline int setting(unsigned id) { return fast_get(SETTINGS, id); }
@@ -279,9 +333,30 @@ static const uint8_t dmap[4][2][32] = {
     },
 };
 
+/* Map Y's far side (own): kick, snare, hat, percussion in a broken / garage feel and a sparse half-time feel */
+static const uint8_t dmap2[4][2][32] = {
+    {   /* kick */
+        {15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 12, 0, 0, 0, 0, 0, 0, 0, 14, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0},
+        {15, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    },
+    {   /* snare */
+        {0, 0, 0, 0, 0, 0, 0, 0, 15, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 2, 0, 0, 15, 0, 0, 4, 0, 0, 6, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0},
+    },
+    {   /* closed hat */
+        {0, 0, 12, 4, 0, 0, 13, 5, 0, 0, 12, 3, 0, 0, 14, 6, 0, 0, 12, 4, 0, 0, 13, 5, 0, 0, 12, 3, 0, 7, 14, 6},
+        {13, 0, 0, 0, 9, 0, 0, 0, 13, 0, 0, 0, 9, 0, 0, 0, 13, 0, 0, 0, 9, 0, 0, 0, 13, 0, 0, 0, 9, 0, 4, 0},
+    },
+    {   /* percussion */
+        {0, 0, 0, 11, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 12, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 13, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0},
+    },
+};
+
 /* m: bit i = step i hits; vel[i] (0 = the lane's Vel); semi[i]: semitones from the pad's pitch (Call+Resp);
    seg[i]: Breakcut's source segment for the hit at step i (-1 = none) */
-struct pat { uint32_t m; uint8_t vel[32]; int8_t semi[32]; int8_t seg[32]; };
+struct pat { uint32_t m, slide; uint8_t vel[32]; int8_t semi[32]; int8_t seg[32]; uint8_t roll[32]; };
+#define ROLLRUN 0x80                                  /* roll[i]: hits in the step (1..4), | ROLLRUN inside a roll */
 
 /* energy x100 (Epoch) for the song position */
 static int energy(int32_t ticks, int *fill_bar)
@@ -305,13 +380,455 @@ static int scaled_hits(int hits, int en)
     return h < 1 ? 1 : h;
 }
 
+/* --- Breakcut procedures: Nick Collins' BBCut as in BBenCut / the OpenTracker fork (src/core/gen/gen_bbcut.cpp, our
+   own code there), on GEN's step grid: a beat = 4 steps, a bar = 16. A cut is a hit whose sound comes from a segment
+   (seg = the step of the source it starts at); a block repeats one segment; cuts shorter than a step become hits
+   inside the step (roll = hits per step). Mutate % is each procedure's amount (repeats, rolls, edits, shuffle ...). */
+static uint32_t rnd(uint32_t *r)
+{
+    *r = *r * 1664525u + 1013904223u;
+    return *r >> 8;
+}
+static int below(uint32_t *r, int k) { return k > 0 ? (int)(rnd(r) % (unsigned)k) : 0; }
+static int coin(uint32_t *r, int pct) { return (int)(rnd(r) % 100u) < pct; }
+
+/* a cut starting at quarter-step q (4 per step) playing segment src; a second cut in the same step makes it a roll */
+static void cut_q(struct pat *p, int n, int q, int src, int run)
+{
+    int i = q >> 2;
+    if (i < 0 || i >= n)
+        return;
+    src %= n;
+    if (src < 0)
+        src += n;
+    if (p->m >> i & 1) {
+        int k = p->roll[i] & 0x7f;
+        p->roll[i] = (uint8_t)((k < 4 ? k + 1 : 4) | ROLLRUN);
+        return;
+    }
+    p->m |= 1u << i;
+    p->seg[i] = (int8_t)src;
+    p->roll[i] = (uint8_t)(1 | (run ? ROLLRUN : 0));
+    if (i % 4 == 0)
+        p->vel[i] = 127;
+}
+
+/* `reps` cuts of `len` steps from step `at`, all from the segment `src` */
+static void block(struct pat *p, int n, int at, int reps, int len, int src)
+{
+    for (int k = 0; k < reps; k++)
+        cut_q(p, n, 4 * (at + k * len), src, 0);
+}
+
+/* a roll over `len` steps from `at`: `per` hits a step, one segment */
+static void rollrun(struct pat *p, int n, int at, int len, int per, int src)
+{
+    per = per < 1 ? 1 : per > 4 ? 4 : per;
+    for (int j = 0; j < len; j++) {
+        int i = at + j;
+        if (i < 0 || i >= n)
+            continue;
+        p->m |= 1u << i;
+        p->seg[i] = (int8_t)(src % n);
+        p->roll[i] = (uint8_t)(per | ROLLRUN);
+        p->vel[i] = (uint8_t)(70 + j * 50 / (len > 1 ? len - 1 : 1));
+    }
+}
+
+static const uint16_t sq_fills[13][6][6] = {          /* SQPusher1's fills: blocks of cut lengths, 1000 = a beat */
+    {{750, 750, 750, 750}, {1000}},
+    {{500, 1000}, {1000}, {1000, 500}},
+    {{500}, {1000, 1000, 1000}, {500}},
+    {{571}, {571, 571}, {571, 571}, {571}, {286, 286}},
+    {{1000, 500}, {1000, 500}, {500, 500}},
+    {{500, 500}, {660, 670, 670}, {1010}},
+    {{340}, {330, 330}, {340, 330}, {2330}},
+    {{1400}, {400, 400}, {600, 200}, {1000}},
+    {{167, 167, 166}, {1000, 1000, 1000}, {500}},
+    {{1500, 500, 1000}, {250, 250, 250, 250}},
+    {{200, 200}, {400, 400}, {400, 400}, {2000}},
+    {{750, 750, 1000}, {250, 250, 250, 250, 250, 250}},
+    {{500, 1000}, {500}, {125, 125, 125, 125}, {1000}, {167, 167, 166}},
+};
+static const uint8_t sq_w[8] = {0, 30, 0, 50, 70, 80, 90, 60};
+static const uint8_t cage_forms[4][3] = {{50, 25, 25}, {25, 50, 25}, {25, 25, 50}, {34, 33, 33}};
+static const uint8_t timelines[5][5] = {{3, 3, 2}, {3, 2, 3}, {2, 3, 3}, {5, 3}, {2, 2, 3, 1}};
+static const uint8_t perms[8][8] = {
+    {0, 1, 2, 3, 4, 5, 6, 7}, {0, 1, 2, 3, 0, 1, 6, 7}, {0, 1, 2, 3, 4, 5, 2, 3}, {0, 3, 2, 1, 4, 7, 6, 5},
+    {0, 1, 0, 1, 2, 3, 6, 7}, {4, 5, 6, 7, 0, 1, 2, 3}, {0, 1, 6, 7, 4, 5, 2, 3}, {0, 1, 2, 2, 4, 5, 6, 6}};
+/* ThrashCut riffs: {steps, type}: 0 kick, 1 snare, 2 kick roll, 3 snare roll, 4 snare roll x2 */
+static const uint8_t thrash_db[4][8][2] = {
+    {{4, 2}, {8, 1}, {4, 2}, {16, 4}},
+    {{2, 2}, {4, 1}, {2, 2}, {2, 2}, {2, 2}, {1, 1}, {3, 1}},
+    {{2, 2}, {2, 2}, {2, 2}, {2, 2}, {2, 1}, {2, 2}, {2, 1}, {2, 2}},
+    {{2, 2}, {4, 1}, {2, 2}, {2, 1}, {2, 2}, {4, 1}},
+};
+static const uint8_t thrash_len[4] = {4, 7, 8, 6};
+
+static void bbcut(int proc, int l, int n, int32_t cycle, int seed, struct pat *p)
+{
+    uint32_t r = hash3((uint32_t)seed + 0x6262u, (uint32_t)l * 16u + (uint32_t)proc, (uint32_t)cycle);
+    int A = clampi(setting(P_MUTATE), 0, 100);
+    int bars = n >= 16 ? n / 16 : 1, bar_len = n >= 16 ? 16 : n;
+    switch (proc) {
+    case PR_CLASSIC: {                                 /* BBCutProc11: odd units (1 / 3 eighths) repeated, a roll */
+        int unit = n >= 8 ? 2 : 1, total = n / unit, done = 0;
+        while (done < total) {
+            int left = total - done;
+            if (coin(&r, A) && left < 4) {
+                rollrun(p, n, done * unit, left * unit, unit == 2 ? 1 : 2, done * unit);
+                break;
+            }
+            int u = coin(&r, 50) ? 1 : 3;
+            while (u > left)
+                u -= 2;
+            if (u < 1)
+                u = 1;
+            int reps = 1 + below(&r, 2);
+            while (reps * u > left) {
+                if (--reps <= 1) {
+                    reps = 1;
+                    u = left;
+                }
+            }
+            block(p, n, done * unit, reps, u * unit, done * unit);
+            done += reps * u;
+        }
+        break;
+    }
+    case PR_CHOOSE: {                                  /* ChooseCutProc: 1 / 1.5 beat cuts, repeated, an end roll */
+        int pos = 0;
+        while (pos < n) {
+            int left = n - pos;
+            if (coin(&r, A) && left < 8) {
+                rollrun(p, n, pos, left, 1, pos);
+                break;
+            }
+            int size = coin(&r, 50) ? 4 : 6;
+            if (size > left)
+                size = left;
+            int reps = 1 + below(&r, 2);
+            while (reps * size > left) {
+                if (--reps <= 1) {
+                    reps = 1;
+                    size = left;
+                }
+            }
+            block(p, n, pos, reps, size, pos);
+            pos += reps * size;
+        }
+        break;
+    }
+    case PR_JUNGLE: {                                  /* amen-style edits of each bar in eighths, a fill every 2 bars */
+        int amt = A * 2 > 100 ? 100 : A * 2;
+        for (int b = 0; b < bars; b++) {
+            int base = b * bar_len, src[8];
+            for (int k = 0; k < 8; k++)
+                src[k] = k;
+            if (coin(&r, amt / 2))
+                src[3] = 2;                            /* double snare */
+            if (coin(&r, amt * 4 / 10))
+                src[1] = 0;                            /* double kick */
+            if (coin(&r, amt * 35 / 100))
+                src[5] = 4;                            /* the kick again on 3-and */
+            if (coin(&r, amt * 3 / 10))
+                for (int k = 4; k < 8; k++)
+                    src[k] = src[k - 4];               /* the first half again */
+            if (coin(&r, amt / 4)) {
+                src[6] = 2;                            /* a snare pair at the end */
+                src[7] = 3;
+            }
+            if (coin(&r, amt / 5)) {
+                int a = 4 + below(&r, 4), c = 4 + below(&r, 4), t = src[a];
+                src[a] = src[c];
+                src[c] = t;
+            }
+            int fill = ((cycle * bars + b) & 1) == 1;
+            int snare = base + (coin(&r, 50) ? 4 : 12);
+            int e = bar_len / 8 ? bar_len / 8 : 1;     /* steps per eighth */
+            for (int k = 0; k < 8; k++) {
+                if (fill && k >= 6)
+                    rollrun(p, n, base + k * e, e, k == 6 ? 1 : 2, snare);
+                else
+                    block(p, n, base + k * e, 1, e, base + src[k] * e);
+            }
+        }
+        break;
+    }
+    case PR_WARP: {                                    /* WarpCutProc: straight cuts or fast rolls of 2 / 4 / 8 steps */
+        int pos = 0;
+        while (pos < n) {
+            int x = below(&r, 100), len = x < 50 ? 2 : x < 90 ? 4 : 8;
+            if (len > n - pos)
+                len = n - pos;
+            if (coin(&r, 100 - A)) {
+                block(p, n, pos, 1, len, pos);
+            } else {
+                int reps = len < 4 ? (4 << below(&r, 3)) : (8 << below(&r, 3));
+                rollrun(p, n, pos, len, reps / len, pos);
+            }
+            pos += len;
+        }
+        break;
+    }
+    case PR_SQPUSH: {                                  /* SQPusher1: quavers / semiquaver bursts, a fill every 4 bars */
+        for (int b = 0; b < bars; b++) {
+            int base = 4 * b * bar_len, qlen = 4 * bar_len, at = 0;   /* in quarter steps */
+            if (((cycle * bars + b) & 3) == 3) {
+                const uint16_t (*f)[6] = sq_fills[below(&r, 13)];
+                for (int bl = 0; bl < 6 && f[bl][0]; bl++) {
+                    int src = (base + at) >> 2;
+                    for (int k = 0; k < 6 && f[bl][k]; k++) {
+                        cut_q(p, n, base + at, src, 0);
+                        at += (f[bl][k] * 16 + 500) / 1000;
+                    }
+                }
+            } else {
+                while (at < qlen) {
+                    int quaver = (at / 8) % 8, chance = sq_w[quaver] * A / 50;
+                    int group = at % 16 == 8 ? 1 : 1 + below(&r, 2), src = (base + at) >> 2;
+                    if (coin(&r, chance))
+                        for (int k = 0; k < 2 * group; k++, at += 4)
+                            cut_q(p, n, base + at, src, 0);
+                    else
+                        for (int k = 0; k < group; k++, at += 8)
+                            cut_q(p, n, base + at, src, 0);
+                }
+            }
+        }
+        break;
+    }
+    case PR_CAGE: {                                    /* CageCut: 3 blocks x 3 cuts in proportions */
+        const uint8_t *f = cage_forms[below(&r, 4)], *g = cage_forms[below(&r, 4)];
+        int q = 0, total = 4 * n;
+        for (int bl = 0; bl < 3; bl++)
+            for (int c = 0; c < 3; c++) {
+                int d = total * f[bl] * g[c] / 10000;
+                int src = coin(&r, A * 2 > 100 ? 100 : A * 2) ? 2 * below(&r, n / 2 ? n / 2 : 1) : q >> 2;
+                cut_q(p, n, q, src, 0);
+                q += d > 0 ? d : 1;
+            }
+        break;
+    }
+    case PR_TIMELINE: {                                /* TimelineCut: 3+3+2, 3+2+3, 2+3+3, 5+3, 2+2+3+1 */
+        const uint8_t *t = timelines[below(&r, 5)];
+        int cnt = 0, sum = 0;
+        while (cnt < 5 && t[cnt])
+            sum += t[cnt++];
+        int rot = coin(&r, A * 2 > 100 ? 100 : A * 2) ? below(&r, cnt) : 0, q = 0;
+        for (int b = 0; b < bars; b++)
+            for (int i = 0; i < cnt; i++) {
+                int d = 4 * bar_len * t[(i + rot) % cnt] / sum;
+                int src = coin(&r, A) ? 2 * below(&r, n / 2 ? n / 2 : 1) : q >> 2;
+                cut_q(p, n, q, src, 0);
+                q += d;
+            }
+        break;
+    }
+    case PR_PERMUTE: {                                 /* PermuteCut: the eighths in a musical permutation */
+        int unit = n / 8 ? n / 8 : 1, riff = coin(&r, A * 2 > 100 ? 100 : A * 2) ? 1 + below(&r, 7) : 0;
+        for (int k = 0; k * unit < n; k++) {
+            int idx = perms[riff][k % 8];
+            if (coin(&r, A / 4))
+                idx ^= 1;
+            block(p, n, k * unit, 1, unit, (idx + (k / 8) * 8) * unit);
+        }
+        break;
+    }
+    case PR_THRASH: {                                  /* ThrashCut: kick / snare riffs, rolls, a stop */
+        for (int b = 0; b < bars; b++) {
+            int riff = below(&r, 4), len = thrash_len[riff], idx = 0, pos = 0, stopped = 0;
+            int sw_a = below(&r, len), sw_b = below(&r, len), fill = coin(&r, 13);
+            while (pos < bar_len) {
+                int e = idx % len;
+                e = e == sw_a ? sw_b : e == sw_b ? sw_a : e;
+                int st = thrash_db[riff][e][0], type = thrash_db[riff][e][1];
+                idx++;
+                if (fill)
+                    type = type == 0 ? 1 : type == 1 ? 0 : type == 2 ? 3 : type == 3 ? 2 : type;
+                int at = b * bar_len + pos, kick = b * bar_len, snare = b * bar_len + 4;
+                if (st > bar_len - pos)
+                    st = bar_len - pos;
+                if (!stopped && coin(&r, A / 2)) {
+                    stopped = 1;                       /* a stop: this block silent */
+                } else if (type == 0 || type == 1) {
+                    block(p, n, at, 1, st, type ? snare : kick);
+                } else {
+                    rollrun(p, n, at, st, type == 4 ? 2 : 1, type == 2 ? kick : snare);
+                }
+                pos += st;
+            }
+        }
+        break;
+    }
+    default:
+        break;
+    }
+}
+
+/* Rolls: Off = only the first hit of a roll; Dense = twice the hits; Fade = falling velocity through a roll */
+static void apply_rolls(struct pat *p, int n)
+{
+    int mode = setting(P_ROLLS), run = 0;
+    for (int i = 0; i < n; i++) {
+        if (!(p->m >> i & 1) || !(p->roll[i] & ROLLRUN)) {
+            run = 0;
+            continue;
+        }
+        int k = p->roll[i] & 0x7f;
+        if (mode == RO_OFF) {
+            if (run)
+                p->m &= ~(1u << i);
+            p->roll[i] = 1;
+        } else if (mode == RO_DENSE) {
+            p->roll[i] = (uint8_t)((k * 2 > 4 ? 4 : k * 2) | ROLLRUN);
+        } else if (mode == RO_FADE) {
+            int v = 120 - run * 22;
+            p->vel[i] = (uint8_t)(v < 30 ? 30 : v);
+        }
+        run++;
+    }
+}
+
+/* the cycle the cuts are drawn for (Recut) */
+static int32_t recut_cycle(int32_t cycle)
+{
+    static const uint8_t every[] = {1, 2, 4, 8};
+    int rc = setting(P_RECUT);
+    if (rc >= 4)
+        return 0;
+    return cycle / every[rc < 0 ? 0 : rc];
+}
+
+/* --- Acid: a 303 line after TB-3PO (Logarhythm, O_C Hemisphere; the fork's gen_acid.cpp): Hits = density (0..32 ->
+   -7..+7: gates 10 + 14 |d| %, the pitch set grows from the root on the negative side, the whole scale from +1, a
+   repeat of the last pitch 50 - 6 (d + 7) %), octave jumps 20 % up / down when Range >= 12, Accent % and Slide %.
+   Every step keeps its draws; Mutate % re-rolls a step's draws at each cycle with that chance. */
+static uint32_t acid_draws(int seed, int l, int i, int32_t cycle)
+{
+    int mut = clampi(setting(P_MUTATE), 0, 100);
+    int32_t g = 0;
+    for (int32_t c = cycle; c > 0 && c > cycle - 64; c--)
+        if ((int)(hash3((uint32_t)seed + 0x3030u, (uint32_t)(l * 32 + i), (uint32_t)c) % 100u) < mut) {
+            g = c;
+            break;
+        }
+    return hash3((uint32_t)seed + 0x303u, (uint32_t)(l * 32 + i), (uint32_t)g);
+}
+
+static void acid(int l, int n, int hits, int32_t cycle, int seed, struct pat *p)
+{
+    int d = hits * 14 / 32 - 7, pd = d + 7 > 8 ? 8 : d + 7, scale = setting(P_SCALE), range = setting(P_RANGE);
+    unsigned msk = scale_mask[scale >= 0 && scale < NSCALE ? scale : 0];
+    int nd = 0;
+    for (int k = 0; k < 12; k++)
+        nd += msk >> k & 1;
+    int avail = nd <= 1 ? 0 : pd > 7 ? nd - 1 : pd < 2 ? (pd < nd - 1 ? pd : nd - 1) : 0;
+    if (nd > 1 && pd >= 2 && pd <= 7) {
+        int rg = nd - 3 < 4 ? 4 : nd - 3, a = 3 + (pd - 3) * rg / 4;
+        avail = a < 1 ? 1 : a > nd - 1 ? nd - 1 : a;
+    }
+    int gate = 10 + 14 * (d < 0 ? -d : d), rep = 50 - 6 * pd;
+    int accent = setting(P_ACCENT), slide = setting(P_SLIDE), prev = 0, lowest = -1;
+    uint32_t lowest_thr = 0xffffffffu;
+    for (int i = 0; i < n; i++) {
+        uint32_t x = acid_draws(seed, l, i, cycle), y = hash3(x, 0x5151u, 7u);
+        int thr = (int)(x & 0xffu) * 100 / 256, semi;
+        if (i > 0 && (int)((x >> 8) & 0xffu) * 100 < rep * 256) {
+            semi = prev;
+        } else {
+            int deg = (int)((x >> 16) & 0xffu) * (avail + 1) / 256, o = (int)(x >> 24);
+            semi = degree_semis(deg, scale);
+            if (range >= 12)
+                semi += o < 51 ? 12 : o < 102 ? -12 : 0;
+            while (semi > range && semi >= 12)
+                semi -= 12;
+        }
+        prev = semi;
+        p->semi[i] = (int8_t)semi;
+        if (thr < gate)
+            p->m |= 1u << i;
+        if ((x & 0xffu) < lowest_thr) {
+            lowest_thr = x & 0xffu;
+            lowest = i;
+        }
+        p->vel[i] = (int)(y & 0xffu) * 100 < accent * 256 ? 127 : 88;
+        if ((int)((y >> 8) & 0xffu) * 100 < slide * 256)
+            p->slide |= 1u << i;
+    }
+    if (!p->m && lowest >= 0)
+        p->m = 1u << lowest;                           /* at least one note */
+    for (int i = 0; i < n; i++)                        /* a slide only into a note that plays */
+        if (!(p->m >> i & 1) || !(p->m >> ((i + 1) % n) & 1))
+            p->slide &= ~(1u << i);
+}
+
+/* --- Learn: a Markov chain over the gaps between the hits the grid taught (MarkovDrummer / Pinball 2 / Genotype):
+   the next gap is drawn from what followed the last gap, weighted by how often the landing step was hit */
+static void learned(int l, int n, int32_t cycle, int seed, struct pat *p, int h, int rot)
+{
+    volatile struct learn *L = &GL[l];
+    if (GL_MAGIC != LMAGIC || !L->any) {
+        p->m = euclid(n, h, rot);                      /* nothing learnt yet */
+        return;
+    }
+    uint32_t r = hash3((uint32_t)seed + 0x4c4cu, (uint32_t)l, (uint32_t)cycle);
+    int best = 0, bw = -1, total = 0;
+    for (int i = 0; i < n && i < 32; i++)              /* start: the most hit of the first beat's steps, or a draw */
+        total += L->phase[i];
+    int pos = 0;
+    if (total) {
+        int x = below(&r, total);
+        for (int i = 0; i < n && i < 32; i++) {
+            x -= L->phase[i];
+            if (x < 0) {
+                pos = i;
+                break;
+            }
+        }
+        for (int i = 0; i < 4 && i < n; i++)
+            if (L->phase[i] > bw) {
+                bw = L->phase[i];
+                best = i;
+            }
+        if (coin(&r, 60))
+            pos = best;
+    }
+    int prev = L->last_ioi >= 1 && L->last_ioi <= 16 ? L->last_ioi : 4, guard = 0;
+    while (pos < n && guard++ < 40) {
+        p->m |= 1u << pos;
+        p->vel[pos] = (uint8_t)(70 + (L->phase[pos & 31] > 7 ? 57 : L->phase[pos & 31] * 8));
+        int w[16], sum = 0;
+        for (int g = 1; g <= 16; g++) {
+            int c = L->ioi[prev - 1][g - 1];
+            w[g - 1] = c ? c * (1 + L->phase[(pos + g) % n & 31]) : 0;
+            sum += w[g - 1];
+        }
+        int gap = prev;
+        if (sum) {
+            int x = below(&r, sum);
+            for (int g = 0; g < 16; g++) {
+                x -= w[g];
+                if (x < 0) {
+                    gap = g + 1;
+                    break;
+                }
+            }
+        }
+        pos += gap;
+        prev = gap;
+    }
+}
+
 static void make_pattern(int l, int algo, int n, int hits, int rot, int32_t cycle, int en, int seed, struct pat *p)
 {
     uint32_t m = 0;
+    p->slide = 0;
     for (int i = 0; i < 32; i++) {
         p->vel[i] = 0;
         p->semi[i] = 0;
         p->seg[i] = -1;
+        p->roll[i] = 1;
     }
     int h = scaled_hits(hits, en);
     switch (algo) {
@@ -319,7 +836,15 @@ static void make_pattern(int l, int algo, int n, int hits, int rot, int32_t cycl
         m = euclid(n, h, rot);
         break;
     case A_BREAK: {                                    /* cuts of 1..4 steps; more hits = shorter cuts */
-        uint32_t r = hash3((uint32_t)seed, (uint32_t)l + 11u, (uint32_t)cycle);
+        int proc = setting(P_PROC);
+        int32_t cr = recut_cycle(cycle);
+        if (proc > PR_BASIC && proc < NPROC) {
+            p->m = 0;
+            bbcut(proc, l, n, cr, seed, p);
+            m = p->m;
+            break;
+        }
+        uint32_t r = hash3((uint32_t)seed, (uint32_t)l + 11u, (uint32_t)cr);
         int maxcut = hits >= 12 ? 2 : hits >= 6 ? 3 : 4;
         int mut = clampi(setting(P_MUTATE), 0, 100);
         int stut = mut / 3, jump = stut + mut * 3 / 2;  /* Mutate 25 %: 8 % stutters, 37 % jumps, the rest in place */
@@ -352,6 +877,7 @@ static void make_pattern(int l, int algo, int n, int hits, int rot, int32_t cycl
                 m |= 1u << (n - len + j);
                 p->vel[n - len + j] = (uint8_t)(60 + j * 60 / len);
                 p->seg[n - len + j] = (int8_t)src;
+                p->roll[n - len + j] = 1 | ROLLRUN;
             }
         }
         break;
@@ -440,13 +966,14 @@ static void make_pattern(int l, int algo, int n, int hits, int rot, int32_t cycl
         m = ln->evo;
         break;
     }
-    case A_DRUM: {
-        const uint8_t *a = dmap[l & 3][0], *b = dmap[l & 3][1];
-        int x = clampi(rot, 0, 31);
+    case A_DRUM: {                                     /* X = Rotate, Y = Map Y: four maps per part, bilinear */
+        const uint8_t *a = dmap[l & 3][0], *b = dmap[l & 3][1], *c = dmap2[l & 3][0], *e = dmap2[l & 3][1];
+        int x = clampi(rot, 0, 31), y = clampi(setting(P_MAPY), 0, 31);
         int thr = 15 - (h * 15 + 16) / 32;            /* density 32 -> every level >= 0 */
         for (int i = 0; i < n; i++) {
             int s = i * 32 / n;
-            int lev = (a[s] * (31 - x) + b[s] * x + 15) / 31;
+            int top = a[s] * (31 - x) + b[s] * x, bot = c[s] * (31 - x) + e[s] * x;
+            int lev = (top * (31 - y) + bot * y + 480) / 961;
             if (lev > thr && lev > 0) {
                 m |= 1u << i;
                 p->vel[i] = (uint8_t)(40 + lev * 87 / 15);
@@ -454,6 +981,16 @@ static void make_pattern(int l, int algo, int n, int hits, int rot, int32_t cycl
         }
         break;
     }
+    case A_ACID:
+        p->m = 0;
+        acid(l, n, hits, cycle, seed, p);
+        m = p->m;
+        break;
+    case A_LEARN:
+        p->m = 0;
+        learned(l, n, cycle, seed, p, h, rot);
+        m = p->m;
+        break;
     case A_RANDOM: {
         uint32_t r = hash3((uint32_t)seed, (uint32_t)l + 51u, (uint32_t)cycle);
         for (int i = 0; i < n; i++) {
@@ -467,6 +1004,8 @@ static void make_pattern(int l, int algo, int n, int hits, int rot, int32_t cycl
         break;
     }
     p->m = m;
+    if (algo == A_BREAK)
+        apply_rolls(p, n);
 }
 
 /* --- notes ---------------------------------------------------------------------------------------------------------- */
@@ -492,6 +1031,48 @@ static uint8_t *pad_record(uint32_t cell)
 {
     return APP + 0x1840u + ((cell >> 8) & 3) * 0xf0u + (cell & 3) * 0x30u;
 }
+
+/* the grid taught a hit on `cell` (gen_learn_note): every Learn lane on that pad notes the gap since its last one */
+static void teach(uint32_t cell, int32_t ticks)
+{
+    if (GL_MAGIC != LMAGIC) {
+        volatile uint8_t *b = (volatile uint8_t *)GL;
+        for (unsigned k = 0; k < 4 * sizeof(struct learn); k++)
+            b[k] = 0;
+        for (int l = 0; l < NL; l++)
+            GL[l].last_step = -1;
+        GL_MAGIC = LMAGIC;
+    }
+    for (int l = 0; l < NL; l++) {
+        uint32_t lc;
+        if (setting(LP(l, L_ALGO)) != A_LEARN || !lane_cell(&GS->lane[l], clampi(setting(LP(l, L_PAD)), 0, 16), &lc)
+            || lc != cell)
+            continue;
+        volatile struct learn *L = &GL[l];
+        int st = rate_ticks[clampi(setting(LP(l, L_RATE)), 0, NRATE - 1)], n = clampi(setting(LP(l, L_STEPS)), 1, 32);
+        int32_t s = (ticks + st / 2) / st;             /* the nearest step */
+        L->phase[(s % n) & 31] = L->phase[(s % n) & 31] < 255 ? L->phase[(s % n) & 31] + 1 : 255;
+        if (L->last_step >= 0 && s > L->last_step && s - L->last_step <= 16) {
+            int gap = (int)(s - L->last_step);
+            if (L->last_ioi >= 1 && L->last_ioi <= 16) {
+                volatile uint8_t *c = &L->ioi[L->last_ioi - 1][gap - 1];
+                if (*c == 255)
+                    for (int a = 0; a < 16; a++)
+                        for (int b = 0; b < 16; b++)
+                            L->ioi[a][b] >>= 1;
+                *c = *c + 1;
+            }
+            L->last_ioi = (uint8_t)gap;
+            L->any = 1;
+        } else if (L->last_step >= 0 && s > L->last_step) {
+            L->last_ioi = 0;                           /* a long pause: a new phrase */
+        }
+        if (s != L->last_step)
+            L->last_step = s;
+    }
+}
+
+
 
 static int queue_ok(uint8_t *eng)
 {
@@ -565,6 +1146,84 @@ static void cut_restore(uint8_t *eng, volatile struct lane *ln)
 
 
 /* --- per audio block (master_dist) --------------------------------------------------------------------------------- */
+/* Turing (after the Music Thing Turing Machine; the fork's gen_turing.cpp): a 16-bit shift register clocked once a
+   step; bit Steps - 1 comes back into bit 0, flipped with a chance set by Lock (+100 never: a loop of Steps steps,
+   0 half the time, -100 always: twice the length, inverted). The low byte is the pitch (Scale, Range); hashes of the
+   register give the gate (Hits / Steps), the velocity and the slides, so a locked loop repeats all of them. */
+static uint32_t reg_byte(uint16_t reg, uint32_t salt) { return (((uint32_t)reg ^ salt) * 0x9e3779b1u) >> 24; }
+
+static void turing_step(int l, volatile struct lane *ln, int n, int hits, int32_t s, int seed, struct pat *p, int pos)
+{
+    int len = n > 16 ? 16 : n;
+    int flip = (100 - clampi(setting(P_LOCK), -100, 100)) * 5;      /* per mille */
+    if (!ln->reg_ok) {
+        uint16_t r = (uint16_t)(hash3((uint32_t)seed + 0x7457u, (uint32_t)l, 1u) >> 7);
+        ln->reg = r ? r : 0xa5a5u;
+        ln->reg_ok = 1;
+    }
+    uint16_t reg = ln->reg;
+    uint16_t bit = (uint16_t)((reg >> (len - 1)) & 1u);
+    if (flip >= 1000 || (flip > 0 && (int)(hash3((uint32_t)seed + 0x7458u, (uint32_t)l, (uint32_t)s) % 1000u) < flip))
+        bit ^= 1u;
+    reg = (uint16_t)((reg << 1) | bit);
+    int prev_hit = reg_byte(ln->reg, 0x5bd1u) * 100u < (uint32_t)(hits * 100 / n) * 256u;
+    ln->reg = reg;
+    int density = hits * 100 / n;
+    if (reg_byte(reg, 0x5bd1u) * 100u >= (uint32_t)density * 256u)
+        return;
+    p->m = 1u << pos;
+    int range = clampi(setting(P_RANGE), 0, 24), scale = setting(P_SCALE);
+    int top = range ? degrees_in(range, scale) : 0;
+    p->semi[pos] = (int8_t)(top ? degree_semis((int)(reg & 0xffu) * (top + 1) / 256, scale) : 0);
+    p->vel[pos] = (uint8_t)(127 - (int)(reg_byte(reg, 0x3a6bu) >> 3) * 50 / 31);
+    if (prev_hit && (int)reg_byte(reg, 0x1d87u) * 100 < setting(P_SLIDE) * 256)
+        p->slide = 1u << pos;
+}
+
+/* Turn (TURNAROUND / DROP II): the last beat of every 8 bars (the last two of 16 / 32) turns: a roll, a stutter of
+   the beat before, a drop (silence) or a fill (Fill conditions on, Breakcut rolls more); which one from Seed. */
+enum { T_NONE, T_ROLL, T_STUTTER, T_DROP, T_FILL };
+static int turn_at(int32_t tick, int seed)
+{
+    int t = setting(P_TURN);
+    if (t <= 0 || t >= 4)
+        return T_NONE;
+    int32_t phrase = turn_bars[t] * BAR, win = t == 1 ? TPB : 2 * TPB;
+    if (tick % phrase < phrase - win)
+        return T_NONE;
+    return T_ROLL + (int)(hash3((uint32_t)seed + 0x7475u, (uint32_t)(tick / phrase), 3u) % 4u);
+}
+
+/* hook at the grid's note-on calls (0x08094e28, patches/gen.py): Learn notes the hit, then the stock call */
+typedef void (*grid_note_fn)(void *ctx, uint32_t cell, unsigned nt, unsigned x, unsigned vel);
+#define fw_grid_note ((grid_note_fn)FN(0x08094e28))
+void gen_grid_note(void *ctx, uint32_t cell, unsigned nt, unsigned x, unsigned vel)
+{
+    uint8_t *eng = ENGINE;
+    if (eng && GS->magic == GMAGIC && (cell >> 16) == 0 && ((cell >> 8) & 0xff) < 4 && (cell & 0xff) < 4
+        && setting(P_LEARN) == 1)
+        teach(cell, *(volatile int32_t *)(eng + E_TICKS));
+    fw_grid_note(ctx, cell, nt, x, vel);
+}
+
+/* GEN's view for the screen saver's Pulse (ss.c): lane l's steps, position and this cycle's hits */
+int gen_lane_view(int l, int *n, int *pos, uint32_t *hits)
+{
+    volatile struct gen *g = GS;
+    uint8_t *eng = ENGINE;
+    if (l < 0 || l >= NL || g->magic != GMAGIC || !eng || setting(P_RUN) != 1)
+        return 0;
+    int algo = setting(LP(l, L_ALGO));
+    if (algo <= A_OFF || algo >= NALGO)
+        return 0;
+    *n = clampi(setting(LP(l, L_STEPS)), 1, 32);
+    int32_t s = g->lane[l].step;
+    *pos = (int)(s % *n);
+    *hits = g->lane[l].shown;
+    return 1;
+}
+
+/* --- per audio block (master_dist) --------------------------------------------------------------------------------- */
 void gen_tick(void)
 {
     volatile struct gen *g = GS;
@@ -582,11 +1241,23 @@ void gen_tick(void)
     int jumped = ticks < g->last_ticks || ticks - g->last_ticks > 4 * TPB;
     g->last_ticks = ticks;
 
-    for (int l = 0; l < NL; l++) {                     /* pending note offs */
+    for (int l = 0; l < NL; l++) {                     /* pending note offs, a roll's further hits */
         volatile struct lane *ln = &g->lane[l];
+        if (!run || jumped)
+            ln->sub_left = 0;
+        while (ln->sub_left && ticks - ln->sub_next >= 0) {
+            if (ln->off_tick)
+                note(eng, 0, ln->off_cell, ln->off_note, 0);
+            note(eng, 1, ln->sub_cell, ln->sub_note, ln->sub_vel);
+            ln->off_cell = ln->sub_cell;
+            ln->off_note = ln->sub_note;
+            ln->sub_next += ln->sub_dt;
+            ln->sub_left--;
+        }
         if (ln->off_tick && (ticks - ln->off_tick >= 0 || !run || jumped)) {
             note(eng, 0, ln->off_cell, ln->off_note, 0);
             ln->off_tick = 0;
+            ln->slide = 0;
         }
         if (ln->cut_cell && (!run || setting(P_CUT) != 1 || setting(LP(l, L_ALGO)) != A_BREAK))
             cut_restore(eng, ln);                       /* Cut over: the pad's own Start back */
@@ -597,7 +1268,7 @@ void gen_tick(void)
     }
     int seed = setting(P_SEED), fill_bar;
     int en = energy(ticks, &fill_bar);
-    int fill = setting(P_FILL) == 1 || fill_bar;
+    int fill0 = setting(P_FILL) == 1 || fill_bar;
 
     for (int l = 0; l < NL; l++) {
         volatile struct lane *ln = &g->lane[l];
@@ -609,6 +1280,7 @@ void gen_tick(void)
             ln->step = idx - 1;
             ln->rate = (uint8_t)rate;
             ln->evo_ok = 0;
+            ln->reg_ok = 0;
         }
         int n = clampi(setting(LP(l, L_STEPS)), 1, 32);
         if (!g->running)
@@ -622,10 +1294,43 @@ void gen_tick(void)
         while (ln->step < idx) {
             int32_t s = ++ln->step;
             int32_t cycle = s / n;
-            int pos = s % n;
+            int pos = s % n, hits = clampi(setting(LP(l, L_HITS)), 0, 32), rot = clampi(setting(LP(l, L_ROT)), 0, 31);
+            int turn = turn_at(s * st, seed), fill = fill0 || turn == T_FILL;
             struct pat p;
-            make_pattern(l, algo, n, clampi(setting(LP(l, L_HITS)), 0, 32), clampi(setting(LP(l, L_ROT)), 0, 31),
-                         cycle, en, seed, &p);
+            if (algo == A_TURING) {
+                p.m = p.slide = 0;
+                p.vel[pos] = 0;
+                p.semi[pos] = 0;
+                p.seg[pos] = -1;
+                p.roll[pos] = 1;
+                turing_step(l, ln, n, hits, s, seed, &p, pos);
+            } else {
+                int32_t ps = s;
+                if (turn == T_STUTTER) {                /* the beat before, again */
+                    int32_t beat = TPB / st > 0 ? TPB / st : 1;
+                    ps = s - beat >= 0 ? s - beat : s;
+                }
+                int ppos = (int)(ps % n);
+                make_pattern(l, algo, n, hits, rot, ps / n, turn == T_FILL ? 100 : en, seed, &p);
+                if (ppos != pos) {                      /* move the stuttered step's hit here */
+                    uint32_t b = p.m >> ppos & 1;
+                    p.m = b << pos;
+                    p.vel[pos] = p.vel[ppos];
+                    p.semi[pos] = p.semi[ppos];
+                    p.seg[pos] = p.seg[ppos];
+                    p.roll[pos] = p.roll[ppos];
+                    p.slide = 0;
+                }
+                if (pos == 0)
+                    ln->shown = p.m;
+            }
+            if (turn == T_DROP)
+                continue;                               /* the drop: silence till the phrase turns */
+            if (turn == T_ROLL) {
+                p.m |= 1u << pos;
+                p.roll[pos] = 2;
+                p.vel[pos] = (uint8_t)(70 + ((s * st) % TPB) * 57 / TPB);
+            }
             if (!(p.m >> pos & 1))
                 continue;
             int c = setting(LP(l, L_COND)), ok = 1;
@@ -646,14 +1351,22 @@ void gen_tick(void)
                 continue;
             int vel = p.vel[pos] ? p.vel[pos] * setting(LP(l, L_VEL)) / 127 : setting(LP(l, L_VEL));
             uint32_t cell;
-            if (!lane_cell(ln, clampi(setting(LP(l, L_PAD)), 0, 16), &cell))
+            int resp = setting(P_RESP0 + l);
+            if (algo == A_CALL && (cycle & 3) == 3 && resp >= 1 && resp <= 17) {   /* the response on its own pad */
+                if (!lane_cell(ln, resp == 1 ? 0 : resp - 1, &cell))
+                    continue;
+            } else if (!lane_cell(ln, clampi(setting(LP(l, L_PAD)), 0, 16), &cell)) {
                 continue;
-            if (ln->off_tick)
+            }
+            int tie = ln->slide && ln->off_tick;        /* the last note slides into this one: its off after */
+            uint32_t tie_cell = ln->off_cell;
+            uint8_t tie_note = ln->off_note;
+            if (ln->off_tick && !tie)
                 note(eng, 0, ln->off_cell, ln->off_note, 0);
             int mode = fast_get(pad_record(cell), P_PADMODE);
             int slicer = mode == 2;
             int nt = p.semi[pos] ? 48 + p.semi[pos] : 0;
-            if (slicer && algo == A_CALL && nt)
+            if (slicer && nt)
                 nt = SLICE0 + p.semi[pos];              /* a Slicer: the melody picks slices */
             if (algo == A_BREAK && p.seg[pos] >= 0 && setting(P_CUT) == 1 && (mode == 0 || slicer)) {   /* not Clip / Granular */
                 if (slicer) {
@@ -680,14 +1393,30 @@ void gen_tick(void)
                     }
                 }
             }
-            note(eng, 1, cell, nt, clampi(vel, 1, 127));
+            vel = clampi(vel, 1, 127);
+            note(eng, 1, cell, nt, vel);
+            if (tie && !(tie_cell == cell && tie_note == nt))
+                note(eng, 0, tie_cell, tie_note, 0);
             ln->off_note = (uint8_t)nt;
             ln->off_cell = cell;
+            ln->slide = (uint8_t)(p.slide >> pos & 1);
             int len = 1;                                /* note off half a step on; a Breakcut cut: at its end */
             if (algo == A_BREAK)
                 while (pos + len < n && !(p.m >> (pos + len) & 1))
                     len++;
-            ln->off_tick = s * st + (algo == A_BREAK ? len * st - st / 8 : st / 2);
+            int k = p.roll[pos] & 0x7f;
+            k = k < 1 ? 1 : k > 4 ? 4 : k;
+            ln->off_tick = s * st + (ln->slide ? st + st / 4 : algo == A_BREAK ? len * st - st / 8 : st / 2);
+            if (k > 1) {                                /* a roll: k hits in this step */
+                ln->sub_left = (uint8_t)(k - 1);
+                ln->sub_dt = st / k;
+                ln->sub_next = s * st + st / k;
+                ln->sub_cell = cell;
+                ln->sub_note = (uint8_t)nt;
+                ln->sub_vel = (uint8_t)vel;
+                if (algo != A_BREAK)
+                    ln->off_tick = s * st + st - st / 8;
+            }
             if (!ln->off_tick)
                 ln->off_tick = 1;
         }

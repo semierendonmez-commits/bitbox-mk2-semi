@@ -30,7 +30,8 @@ PARK = 0x2001AD00
 RET = 0x24000000
 STACK = 0x2407F000
 P_INTERP = 0xD2
-NAMES = ["Normal", "HighQ", "SP1200", "SP-12", "S950", "MPC60", "SP Raw", "16k", "12k", "10k", "8k", "6k", "4k", "2k"]
+NAMES = ["Normal", "HighQ", "SP1200", "SP-12", "S950", "MPC60", "SP Raw", "16k", "12k", "10k", "8k", "6k", "4k", "2k",
+         "Phone", "ADPCM", "u-Law"]
 N = 64
 
 failures = 0
@@ -162,7 +163,7 @@ e.mu.reg_write(UC_ARM_REG_LR, RET | 1)
 e.mu.hook_add(UC_HOOK_CODE, lambda uc, a, s, _: uc.emu_stop(), begin=0x0806B742, end=0x0806B742)
 e.mu.emu_start(0x0806B72E | 1, 0x0806B742, count=200000)
 names = [e.cstr(e.r32(seen["names"] + 4 * k)) for k in range(seen.get("count", 0))]
-check("Fidelity list: Normal, HighQ, 5 machines, 16k .. 2k", names == NAMES and seen["param"] == P_INTERP, names)
+check("Fidelity list: Normal, HighQ, 5 machines, 16k .. 2k, Phone, ADPCM, u-Law", names == NAMES and seen["param"] == P_INTERP, names)
 check("label 'Fidelity:', xml name stays 'interpqual'",
       e.cstr(seen["label"]) == "Fidelity:" and e.cstr(seen["xml"]) == "interpqual", (e.cstr(seen["label"]), e.cstr(seen["xml"])))
 check("new knobs registered: Filter 2 (bipolar), Res 2, Drive",
@@ -302,6 +303,28 @@ runs = [out[i] == out[i + 1] for i in range(N - 1)]
 check("12k: zero-order hold (one new value per 4 samples)", len(set(out)) <= N // 4 + 1, len(set(out)))
 check("12k: 12-bit values", all(abs(v * 2048 - round(v * 2048)) < 1e-4 for v in out))
 check("12k: right channel crunched too", e.rf(R, N) == out)
+
+# Codec modes: Phone holds 6 samples (8 kHz) of mu-law values and low-passes them; ADPCM 22 kHz holds ~2; u-Law 16 kHz
+# holds 3 samples of mu-law values
+def codec_out(name):
+    set_interp(NAMES.index(name))
+    obj = filter_obj(0.0)
+    b, L, R = buffer(x, x)
+    run_a(obj, b, pad)
+    return e.rf(L, N)
+ul = codec_out("u-Law")
+ad = codec_out("ADPCM")
+ph = codec_out("Phone")
+ul_levels = sorted({round(abs(v) * 32768) for v in ul})
+ul_err = min(max(abs(a - b) for a, b in zip(ul[d:], x[:N - d])) for d in range(0, 4))
+check("u-Law: 16 kHz hold (<= N/3 + 1 values), every value a mu-law level, close to the input",
+      len(set(ul)) <= N // 3 + 1 and ul_err < 0.25, (len(set(ul)), ul_levels[:6], ul_err))
+check("ADPCM: a 22 kHz hold, the decoder's values follow the input after it adapts",
+      len(set(ad)) <= N // 2 + 2 and max(abs(a - b) for a, b in zip(ad[N // 2:], x[N // 2 - 1:-1])) < 0.3,
+      (len(set(ad)), max(abs(a - b) for a, b in zip(ad[N // 2:], x[N // 2 - 1:-1]))))
+check("Phone: low-passed (no long holds: the filter smooths them) and quieter at 997 Hz than its input? (in band: kept)",
+      len(set(ph)) > N // 2 and max(abs(v) for v in ph) > 0.2, (len(set(ph)), max(abs(v) for v in ph)))
+set_interp(NAMES.index("12k"))
 
 other = engine_pad(row=0, col=0)
 set_interp(0, row=0, col=0)

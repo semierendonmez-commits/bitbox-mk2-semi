@@ -25,6 +25,8 @@
  */
 #include <stdint.h>
 
+#include "codec.h"
+
 #pragma GCC optimize("O2", "no-tree-loop-distribute-patterns")   /* per-sample loops run for every voice; no libc to call */
 
 #define FN(addr) ((addr) | 1u)
@@ -97,11 +99,18 @@ static const struct machine machines[] = {
 #define MACHINES ((int)(sizeof machines / sizeof machines[0]))
 #define FIRST_MACHINE STOCK_INTERP                      /* machines before the plain crunches, as in the mod */
 #define FIRST_CRUNCH  (STOCK_INTERP + MACHINES)
+/* Codec modes after the crunches (codec.c): Phone (8 kHz, mu-law, 3.4 kHz low-pass), ADPCM (IMA 4-bit at 22 kHz),
+   u-Law (mu-law at 16 kHz) */
+enum { CD_PHONE, CD_ADPCM, CD_ULAW, CODECS };
+#define FIRST_CODEC   (STOCK_INTERP + MACHINES + CRUNCHES)
+#define NINTERP       (STOCK_INTERP + MACHINES + CRUNCHES + CODECS)
+static const float phone_lp[4] = {0.037338f, 0.074677f, -1.383901f, 0.533378f};   /* RBJ low-pass 3.4 kHz, Q 0.707 */
 
-const char *const interp_names[STOCK_INTERP + CRUNCHES + MACHINES] = {
+const char *const interp_names[NINTERP] = {
     (const char *)0x080c3590u, (const char *)0x080c3598u,       /* stock "Normal", "HighQ" */
     "SP1200", "SP-12", "S950", "MPC60", "SP Raw",
     "16k", "12k", "10k", "8k", "6k", "4k", "2k",
+    "Phone", "ADPCM", "u-Law",
 };
 
 /* Replaces the Interp list registration call (0x0806b73e): 2 -> 14 entries, label "Interp:" -> "Fidelity:". The xml
@@ -118,7 +127,7 @@ void interp_register(void *table, int param, const char *label, const char *cons
     (void)label;
     (void)names;
     (void)count;
-    fw_register_list(table, param, "Fidelity:", interp_names, STOCK_INTERP + CRUNCHES + MACHINES, xml);
+    fw_register_list(table, param, "Fidelity:", interp_names, NINTERP, xml);
     /* the new pad parameters, registered next to it (same table) */
     fw_register_knob(table, P_FILT2, 9, "Filter 2:", -1000, 1000, "pkfilt2");
     fw_register_knob(table, P_RES2, 8, "Res 2:", 0, 1000, "pkres2");
@@ -230,6 +239,51 @@ static void out_stage(uint8_t *obj, float **ch, int n, const float *c)
         o->z[k][0] = z1;
         o->z[k][1] = z2;
     }
+}
+
+/* the Codec modes: sample and hold at the codec's rate, each new sample through the codec; ADPCM keeps its
+   predictor in the machine output stage's slot (obj +0x60, unused by these modes) */
+struct adstate {
+    uint32_t magic;
+    struct adpcm a[2];
+};
+#define AMAGIC 0x41445043u       /* "ADPC" */
+_Static_assert(0x60 + sizeof(struct adstate) <= F2TAIL, "adstate must stay below filter 2's tail");
+
+static void codec_mode(uint8_t *obj, struct fstate *st, float **ch, int n, int mode)
+{
+    static const float rates[CODECS] = {8000.0f, 22050.0f, 16000.0f};
+    struct adstate *ad = (struct adstate *)(obj + 0x60);
+    if (mode == CD_ADPCM && ad->magic != AMAGIC) {
+        ad->a[0].pred = ad->a[1].pred = 0;
+        ad->a[0].index = ad->a[1].index = 0;
+        ad->magic = AMAGIC;
+    }
+    float step = rates[mode] / FS, phase = st->phase;
+    float held0 = st->held[0], held1 = st->held[1];
+    for (int i = 0; i < n; i++) {
+        phase += step;
+        if (phase >= 1.0f) {
+            phase -= 1.0f;
+            if (mode == CD_ADPCM) {
+                held0 = adpcm_q(&ad->a[0], ch[0][i]);
+                if (ch[1])
+                    held1 = adpcm_q(&ad->a[1], ch[1][i]);
+            } else {
+                held0 = ulaw_q(ch[0][i]);
+                if (ch[1])
+                    held1 = ulaw_q(ch[1][i]);
+            }
+        }
+        ch[0][i] = held0;
+        if (ch[1])
+            ch[1][i] = held1;
+    }
+    st->phase = phase;
+    st->held[0] = held0;
+    st->held[1] = held1;
+    if (mode == CD_PHONE)
+        out_stage(obj, ch, n, phone_lp);
 }
 
 static void crunch(struct fstate *st, float **ch, int n, float rate)
@@ -369,7 +423,7 @@ void filter_process(uint8_t *obj, void *buf, const uint8_t *pad)
         st->magic = MAGIC;
     }
     unsigned interp = pad_interp(pad);
-    int crunching = interp >= STOCK_INTERP && interp < STOCK_INTERP + CRUNCHES + MACHINES;
+    int crunching = interp >= STOCK_INTERP && interp < NINTERP;
     uint8_t *params = *(uint8_t **)(obj + OBJ_PARAMS);
     float knob = params ? fw_param(params + 8) : 0.0f;
     float knob2 = clamp1((float)(int)pad_setting(pad, P_FILT2) * 0.001f, -1.0f);
@@ -400,6 +454,8 @@ void filter_process(uint8_t *obj, void *buf, const uint8_t *pad)
         }
         if (!m->raw)
             out_stage(obj, ch, n, m->out);
+    } else if (interp >= FIRST_CODEC && interp < NINTERP) {
+        codec_mode(obj, st, ch, n, interp - FIRST_CODEC);
     } else if (crunching) {
         crunch(st, ch, n, crunch_rate[interp - FIRST_CRUNCH]);
     }

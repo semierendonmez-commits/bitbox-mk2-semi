@@ -74,8 +74,9 @@ xml = e.new(16)
 e.mu.mem_write(xml, b"globcomp\0")
 e.call(SYM["comp_register"], 0, 0x96, 3, lab, stack=(0, 1, xml))
 del e.stubs[0x0806A27C], e.stubs[0x0806A2D4]
-check("delay Type list: Digital, Dig >, Tape, Tape >, BBD, BBD > (xml dlytype)",
-      lists.get(P_DTYPE) == ("Type:", ["Digital", "Dig >", "Tape", "Tape >", "BBD", "BBD >"], "dlytype"), lists.get(P_DTYPE))
+check("delay Type list: Digital, Dig >, Tape, Tape >, BBD, BBD >, Codec, Codec > (xml dlytype)",
+      lists.get(P_DTYPE) == ("Type:", ["Digital", "Dig >", "Tape", "Tape >", "BBD", "BBD >", "Codec", "Codec >"], "dlytype"),
+      lists.get(P_DTYPE))
 check("FX Out list: Out1/2, Dly FX1/2, Rvb FX1/2, FX1/2, Dly1 Rvb2 (xml fxout)",
       lists.get(P_FX_OUT) == ("FX Out:", ["Out1/2", "Dly FX1/2", "Rvb FX1/2", "FX1/2", "Dly1 Rvb2"], "fxout"))
 check("Compressor (0x96) is a list now: Off, Out1/2, FX1/2, Both; xml stays globcomp",
@@ -225,6 +226,22 @@ check("delay types at their defaults: Digital clean; Tape coloured (peak down, <
 put(DLY, P_DTYPE, 0)
 e.w32(obj + 0x30 + 0x10, 0)
 
+# Codec: ADPCM at 4..16 kHz (Tone) on what goes onto the line: close to the input but not equal; Drive 1000: some
+# whole 10 ms frames dropped (zeros)
+put(DLY, 0x1B2, 1000)                                      # Tone open: 16 kHz
+e.w32(0x2001F360, 0)
+cod = write_signal(6, 4800, [0.5 * math.sin(2 * math.pi * 440 * k / 48000) for k in range(8 * N)])
+ref = [0.5 * math.sin(2 * math.pi * 440 * k / 48000) for k in range(8 * N)]
+err = max(abs(a - b) for a, b in zip(cod[2 * N:], ref[2 * N - 4:]))
+put(DLY, 0x1B1, 1000)                                      # Drive: frame loss up to 30 %
+e.w32(0x2001F360, 0)
+lossy = write_signal(6, 4800, [0.5] * (48 * N))
+zero_frames = sum(1 for f in range(1, 12) if all(v == 0.0 for v in lossy[f * 480:(f + 1) * 480]))
+check("delay Codec: ADPCM keeps a 440 Hz tone (error < 0.2) but changes it; Drive drops whole 10 ms frames",
+      0.0 < err < 0.2 and cod != ref and 0 < zero_frames < 11, (err, zero_frames))
+put(DLY, 0x1B1, 0)
+put(DLY, P_DTYPE, 0)
+
 # --- delay read: the target length moves by the modulation for the read only, then comes back
 line = obj + 0x30
 e.w32(line + 0x10, 4800)
@@ -338,14 +355,14 @@ if "ss_dispatch" in SYM:
 
 # --- KEY modulation source (modsrc.c, patches/modsrc.py)
 if "mod_codes" in SYM:
-    codes = struct.unpack_from("<21H", IMG, SYM["mod_codes"] - BASE)
-    names = [e.cstr(struct.unpack_from("<I", IMG, SYM["mod_names"] + 4 * k - BASE)[0]) for k in range(21)]
-    check("KEY / ENV sources: codes = stock 19 + 14, 0x30, names + KEY, ENV; all three literals and counts patched",
-          codes[20] == 0x30 and names[20] == "ENV" and codes[:19] == struct.unpack_from("<19H", open(os.path.join(ROOT, "firmware", "BITBOXMK2.bin"), "rb").read(), 0x080C5DE4 - BASE) and codes[19] == 14 and names[19] == "KEY"
+    codes = struct.unpack_from("<24H", IMG, SYM["mod_codes"] - BASE)
+    names = [e.cstr(struct.unpack_from("<I", IMG, SYM["mod_names"] + 4 * k - BASE)[0]) for k in range(24)]
+    check("KEY / ENV / CHAOS / RAND / NET sources: codes = stock 19 + 14, 0x30..0x33; all three literals and counts patched",
+          codes[20:] == (0x30, 0x31, 0x32, 0x33) and names[20:] == ["ENV", "CHAOS", "RAND", "NET"] and codes[:19] == struct.unpack_from("<19H", open(os.path.join(ROOT, "firmware", "BITBOXMK2.bin"), "rb").read(), 0x080C5DE4 - BASE) and codes[19] == 14 and names[19] == "KEY"
           and names[:3] == ["none", "EXT1", "EXT2"]
           and all(struct.unpack_from("<I", IMG, a - BASE)[0] == SYM["mod_codes"] for a in (0x0807A8BC, 0x08083F48, 0x08091A10))
           and all(struct.unpack_from("<I", IMG, a - BASE)[0] == SYM["mod_names"] for a in (0x0806AACC, 0x08083F4C))
-          and IMG[0x0806A9A6 - BASE] == 21 and IMG[0x08083D98 - BASE] == 21 and IMG[0x080917FA - BASE] == 21, (codes, names))
+          and IMG[0x0806A9A6 - BASE] == 24 and IMG[0x08083D98 - BASE] == 24 and IMG[0x080917FA - BASE] == 24, (codes, names))
     # ENV: the pick gives code 0x30 the pad's object, keeps PTCH; the tick runs the envelope on the pad's gate
     padx = e.new(0x700)
     e.w32(padx + 0x18, (1 << 8) | 2)                        # row 1, col 2 (the test record)
@@ -372,6 +389,24 @@ if "mod_codes" in SYM:
     check("ENV: object = ENV slot of the pad (row 1, col 2), PTCH = pad +0x13c, other codes 0; rises on a voice, falls "
           "after release", obj == 0x2001C200 + 6 * 16 and ptch == padx + 0x13C and other == 0 and levels[0] == 0.0
           and 0.2 < levels[1] < 0.6 and abs(levels[2] - 0.6) < 0.01 and levels[3] == 0.0, (hex(obj), levels))
+
+    # CHAOS / RAND / NET: own objects (value at +4) per pad; CHAOS moves and stays within -1..1, RAND changes only on
+    # a new voice, NET moves slowly
+    e.w32(0x2001F2F0, 0)
+    padn = e.new(0x700)
+    e.w32(padn + 0x18, (1 << 8) | 2)
+    oc, orr, on = (e.call(SYM["modsrc_pick"], c, padn) for c in (0x31, 0x32, 0x33))
+    vals = {oc: [], orr: [], on: []}
+    for k in range(600):
+        e.w32(padn + 0x6C, 1 + k // 200)                   # a new voice at blocks 200 and 400
+        e.call(SYM["modenv_tick"])
+        for o in vals:
+            vals[o].append(e.rf(o + 4, 1)[0])
+    rset = sorted(set(round(v, 6) for v in vals[orr]))
+    check("CHAOS moves within -1..1; RAND holds and changes on new notes (3 values); NET moves; one object each, "
+          "the same object again for the same pad", len(set(vals[oc])) > 300 and all(-1 <= v <= 1 for v in vals[oc])
+          and len(rset) == 3 and len(set(vals[on])) > 100 and len({oc, orr, on}) == 3
+          and e.call(SYM["modsrc_pick"], 0x31, padn) == oc, (len(set(vals[oc])), rset, len(set(vals[on]))))
 
 # --- CV In: scale / offset and the pitch quantizer (cvq.c, the engine's CV event call 0x08095c22)
 if "cvq_event" in SYM:

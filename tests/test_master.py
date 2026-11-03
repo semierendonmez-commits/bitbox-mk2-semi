@@ -48,8 +48,8 @@ def put(pid, v):
 e.stub(0x08045012, lambda uc: None)                       # its last call (not about the store)
 e.call(0x08089CBC, SET)
 cnt, ids = store_ids(SET)
-check("settings store: 36 stock entries + 15 new + FX Out + Saver, View, More Page + CV In 4 + GEN 44 (103 of 128), "
-      "0x17b there", cnt == 103 and 0x17B in ids and 0x96 in ids, cnt)
+check("settings store: 36 stock entries + 15 new + FX Out + Saver, View, More Page + CV In 4 + GEN 57 (116 of 128), "
+      "0x17b there", cnt == 116 and 0x17B in ids and 0x96 in ids, cnt)
 check("new entries with defaults: compressor = stock (-4 dB, 4:1, 10 ms, 250 ms, -4 dB), distortion Off / 12 dB / "
       "Tone open / Mix 100 % / Level 0 dB",
       [ids.get(COMP[k]) for k in ("thresh", "ratio", "attack", "release", "gain")] == [-4000, 4, 10, 250, -4000]

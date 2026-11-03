@@ -27,6 +27,8 @@
  */
 #include <stdint.h>
 
+#include "codec.h"
+
 #pragma GCC optimize("O2", "no-tree-loop-distribute-patterns")
 
 #define FN(addr) ((addr) | 1u)
@@ -82,8 +84,8 @@ int fast_get(const void *store, unsigned param);       /* fastget.c: 0x08089388 
 static const uint16_t dly_stock[] = {0x15, 0x16, 0x1b, 0x0e, 0xac, 0x17, 0xab, 0x18, 0};
 static const uint16_t dly_ours[] = {P_DRATE, P_DDEPTH, P_DFLUT, P_DDRIVE, P_DTONE, P_DLEVEL, P_DSPREAD, 0};
 
-enum { T_DIGITAL, T_TAPE, T_BBD, TYPES };
-static const char *const dtype_names[] = {"Digital", "Dig >", "Tape", "Tape >", "BBD", "BBD >"};
+enum { T_DIGITAL, T_TAPE, T_BBD, T_CODEC, TYPES };
+static const char *const dtype_names[] = {"Digital", "Dig >", "Tape", "Tape >", "BBD", "BBD >", "Codec", "Codec >"};
 static const char *const fxout_names[] = {"Out1/2", "Dly FX1/2", "Rvb FX1/2", "FX1/2", "Dly1 Rvb2"};
 enum { O_MAIN, O_DLY, O_RVB, O_BOTH, O_SPLIT, OUTS };
 
@@ -290,6 +292,50 @@ void delay_read(uint8_t *line, void *bus, int left)
     *target = t;
 }
 
+/* Codec (TRANSCODE / FRAMELOSS): what goes onto the line passes an IMA ADPCM codec (4 bits) at a reduced rate (Tone:
+   4 kHz .. 16 kHz), so every repeat is coded again - generation loss; Drive drops whole 10 ms frames (packet loss,
+   up to 30 %). State per line in patch RAM. */
+struct cline {
+    struct adpcm a;
+    float lp, held, phase;
+    uint32_t pos, lcg;
+    uint8_t lost, pad[3];
+};
+#define CL ((struct cline *)0x2001f300u)              /* [mk2] patch RAM, 3 x 0x20 (tests/test_ram.py) */
+#define CLMAGIC (*(volatile uint32_t *)0x2001f360u)
+_Static_assert(sizeof(struct cline) == 0x20, "codec line state");
+#define FRAME 480
+
+static void codec_line(int i, float *x, int n, int tone, int drive)
+{
+    if (CLMAGIC != 0x434f4443u) {
+        uint32_t *w = (uint32_t *)CL;
+        for (unsigned k = 0; k < 3 * sizeof(struct cline) / 4; k++)
+            w[k] = 0;
+        for (int k = 0; k < 3; k++)
+            CL[k].lcg = 0x1234567u * (uint32_t)(k + 1);
+        CLMAGIC = 0x434f4443u;
+    }
+    struct cline *c = &CL[i];
+    float rate = 4000.0f + (float)tone * 12.0f, step = rate / FS;
+    float w = 6.2831853f * 0.45f * rate / FS, a = w / (1.0f + w);
+    int loss = drive * 3 / 10;                          /* per mille of frames */
+    for (int k = 0; k < n; k++) {
+        if (c->pos == 0) {
+            c->lcg = c->lcg * 1664525u + 1013904223u;
+            c->lost = (int)((c->lcg >> 8) % 1000u) < loss;
+        }
+        c->pos = c->pos + 1 >= FRAME ? 0 : c->pos + 1;
+        c->lp += a * (x[k] - c->lp);                   /* anti-alias for the codec's rate */
+        c->phase += step;
+        if (c->phase >= 1.0f) {
+            c->phase -= 1.0f;
+            c->held = adpcm_q(&c->a, c->lp);
+        }
+        x[k] = c->lost ? 0.0f : c->held;
+    }
+}
+
 /* writes (bl at 0x080a8dc0, 0x080a8dca, 0x080a8dfc, 0x080a8ee8, 0x080a8ef2): colour what goes onto the line */
 void delay_write(uint8_t *line, void *bus, int left)
 {
@@ -307,6 +353,11 @@ void delay_write(uint8_t *line, void *bus, int left)
     fw_planes(bus, &l, &r);
     float *x = left ? l : r;
     if (!x || n <= 0 || n > 512) {
+        fw_line_write(line, bus, left);
+        return;
+    }
+    if (type == T_CODEC) {
+        codec_line(i, x, n, tone, drive);
         fw_line_write(line, bus, left);
         return;
     }
