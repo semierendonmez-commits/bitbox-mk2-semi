@@ -4,6 +4,15 @@
 
 Builds for the **bitbox MK2** on top of the stock firmware **2.3.4**, named `2.3.4-s<build>`.
 
+### 2.3.4-sL (2026-11-03)
+
+- **Fix: the unit did not boot (black screen after the update) with sA..sK.** A unit starts with garbage in RAM, the
+  simulator with zeros; the ENV modulation table was read before anything wrote it and followed a garbage pad pointer
+  in the audio block. The patch RAM (now the top 24 KB of DTCM, reserved from the firmware's DTCM allocator) is
+  cleared at boot before anything else runs. Found by a hardware bisect (probe builds sT1..sT9) and reproduced in
+  Renode, which now fills RAM with a pattern before boot. **First build that boots on a unit** (Menu: 2.3.4-sL).
+- Contains everything from sA..sK.
+
 ### 2.3.4-sK (2026-11-03)
 
 - **GEN, a generative step sequencer** (the MK2 has no sequencer of its own: the framework's blackbox sequencer code,
