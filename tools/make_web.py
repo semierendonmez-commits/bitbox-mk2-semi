@@ -91,7 +91,9 @@ def main(argv):
     from thumb import STOCK_END, symbols
     sym = symbols(os.path.join(ROOT, "out", "cave.elf"))
     allow = [(sym["mod_codes"] - STOCK_END - 4, sym["mod_codes"] - STOCK_END + 2 * 24,
-              "modsrc.c mod_codes: the stock MOD source code list (written out in our source) + KEY, ENV; with the zero padding before it")]
+              "modsrc.c mod_codes: the stock MOD source code list (written out in our source) + KEY, ENV; with the zero padding before it"),
+             (sym["sq_fills"] - STOCK_END, sym["sq_fills"] - STOCK_END + 13 * 6 * 6 * 2,
+              "gen.c sq_fills: SQPusher's fill table, mostly zero padding (runs of zeros match stock zeros)")]
     patch = webpatch.make("bitbox-mk2-semi", version, "2.3.4", stock, built, features=FEATURES, allow=allow)
     patch.update(title=f"{version}: everything", source_commit=commit + ("-dirty" if dirty else ""),
                  summary="All patch sets; the combination the tests cover.")
