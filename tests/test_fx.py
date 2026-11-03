@@ -289,5 +289,16 @@ if "ss_dispatch" in SYM:
           on_after == 0 and seen_cmd == [3] and e.r32(ss + 8) == 0, (on_after, seen_cmd, e.r32(ss + 8)))
     del e.stubs[0x0808073C]
 
+# --- KEY modulation source (modsrc.c, patches/modsrc.py)
+if "mod_codes" in SYM:
+    codes = struct.unpack_from("<20H", IMG, SYM["mod_codes"] - BASE)
+    names = [e.cstr(struct.unpack_from("<I", IMG, SYM["mod_names"] + 4 * k - BASE)[0]) for k in range(20)]
+    check("KEY source: code table = stock 19 + 14, names stock 19 + KEY; all three literals and counts patched",
+          codes[:19] == struct.unpack_from("<19H", open(os.path.join(ROOT, "firmware", "BITBOXMK2.bin"), "rb").read(), 0x080C5DE4 - BASE) and codes[19] == 14 and names[19] == "KEY"
+          and names[:3] == ["none", "EXT1", "EXT2"]
+          and all(struct.unpack_from("<I", IMG, a - BASE)[0] == SYM["mod_codes"] for a in (0x0807A8BC, 0x08083F48, 0x08091A10))
+          and all(struct.unpack_from("<I", IMG, a - BASE)[0] == SYM["mod_names"] for a in (0x0806AACC, 0x08083F4C))
+          and IMG[0x0806A9A6 - BASE] == 20 and IMG[0x08083D98 - BASE] == 20 and IMG[0x080917FA - BASE] == 20, (codes, names))
+
 print(f"\n{'FAILED: ' + str(failures) if failures else 'all passed'}")
 sys.exit(1 if failures else 0)
