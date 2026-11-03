@@ -22,7 +22,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "patches"))
 from thumb import BASE, bl_target, symbols  # noqa: E402
 
-IMG = open(os.path.join(ROOT, "out", os.environ.get("PK_BUILD", "fidelity+pages+sound+reverb+fixes+master+fx+fx3+ss+modsrc+ui+cave"), "BITBOXMK2.bin"), "rb").read()
+IMG = open(os.path.join(ROOT, "out", os.environ.get("PK_BUILD", "fidelity+pages+sound+reverb+fixes+master+fx+fx3+ss+modsrc+ui+gen+cave"), "BITBOXMK2.bin"), "rb").read()
 SYM = symbols(os.path.join(ROOT, "out", "cave.elf"))
 
 APP_PADS = 0x24015170 + 0x1840
@@ -159,7 +159,7 @@ e.mu.reg_write(UC_ARM_REG_R0, 0)
 e.mu.reg_write(UC_ARM_REG_SP, STACK - 0x40)
 e.mu.reg_write(UC_ARM_REG_LR, RET | 1)
 e.mu.hook_add(UC_HOOK_CODE, lambda uc, a, s, _: uc.emu_stop(), begin=0x0806B742, end=0x0806B742)
-e.mu.emu_start(0x0806B72E | 1, 0x0806B742, count=1000)
+e.mu.emu_start(0x0806B72E | 1, 0x0806B742, count=200000)
 names = [e.cstr(e.r32(seen["names"] + 4 * k)) for k in range(seen.get("count", 0))]
 check("Fidelity list: Normal, HighQ, 5 machines, 16k .. 2k", names == NAMES and seen["param"] == P_INTERP, names)
 check("label 'Fidelity:', xml name stays 'interpqual'",
@@ -171,7 +171,7 @@ check("new knobs registered: Filter 2 (bipolar), Res 2, Drive",
                 (0x1C8, 8, "FX3 Send:", 0, 1000, "fx3send"), (0x183, 1, "Loop Fade:", 0, 50, "pkloopfade")], knobs)
 check("delay knobs (fx.c, registered first by master_register): 0x1ae..0x1b4",
       [k[0] for k in knobs[7:14]] == list(range(0x1AE, 0x1B5)), knobs[7:14])
-knobs = knobs[:7] + knobs[14:]
+knobs = knobs[:7] + [k for k in knobs[14:] if not 0x1D1 <= k[0] <= 0x2FC]    # GEN (gen.c): tests/test_gen.py
 check("master section knobs registered after them (master.c; Dist Type is a list; MK2 label 'Dist Lvl:'; CV In)",
       [k[0] for k in knobs[7:]] == [0x1A1, 0x1A2, 0x1A3, 0x1A5, 0x1A6, 0x19E, 0x1A8, 0x1A9, 0x1AB, 0x1AC, 0x1BB, 0x1BC]
       and knobs[-3][2] == "Dist Lvl:"

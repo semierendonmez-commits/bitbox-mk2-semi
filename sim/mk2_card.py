@@ -29,12 +29,30 @@ PADS = [
 ]
 
 
+BEEPS = {"Row3": 1000, "Corner": 2000, "Row2": 3000, "Keys": 4000, "Sample": 5000}
+
+
+def beep(path, hz, ms=40, rate=48000):
+    import math
+    import struct
+    import wave
+    n = rate * ms // 1000
+    data = b"".join(struct.pack("<hh", v, v) for v in
+                    (int(20000 * math.sin(2 * math.pi * hz * k / rate) * min(1, (n - k) / 200)) for k in range(n)))
+    with wave.open(path, "wb") as w:
+        w.setnchannels(2)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        w.writeframes(data)
+
+
 def main(a):
     """a: [image path] [--fx]  (--fx: Sample pad FX1 Send 100 %, Keys FX2 Send 100 %, for the FX return tests)"""
     fx = "--fx" in a
     fx3 = "--fx3" in a                         # Sample pad FX3 Send 100 % (and nothing else)
     out2 = "--out2" in a                       # Sample pad Output = FX1/2 (bus 3: the second jack pair)
-    a = [x for x in a if x not in ("--fx", "--fx3", "--out2")]
+    beeps = "--beeps" in a                     # GEN tests: Row3 / Corner / Row2 / Keys / Sample = 40 ms beeps of 1/2/3/4/5 kHz
+    a = [x for x in a if x not in ("--fx", "--fx3", "--out2", "--beeps")]
     sd = os.path.abspath(a[0]) if a else os.path.join(ROOT, "out", "sim", "mk2_sd.img")
     pre = os.path.join(TREE, "Presets", "Test")
     shutil.rmtree(TREE, ignore_errors=True)
@@ -50,6 +68,8 @@ def main(a):
         if fx and name in ("Sample", "Keys"):
             extra = (extra + (' fx1send="1000"' if name == "Sample" else ' fx2send="1000"')).strip()
         shutil.copyfile(os.path.join(pre, "chord.wav" if name == "Keys" else src[mode]), os.path.join(pre, name + ".wav"))
+        if beeps and name in BEEPS:
+            beep(os.path.join(pre, name + ".wav"), BEEPS[name])
         out += [f'        <cell row="{r}" column="{c}" layer="0" filename=".\\{name}.wav" type="sample">',
                 f'            <params cellmode="{mode}" {extra}/>'.replace(" />", "/>"),
                 "            <slices/>", "        </cell>"]

@@ -34,6 +34,7 @@ REGIONS = [                                         # start, size, owner (micro 
     (0x2406D200, 0x100, "modsrc.c ENV sources (16 pads x 0x10)  (semi)"),
     (0x2406D300, 0x40, "dialdef.c double tap state + scratch record  (semi)"),
     (0x2406D340, 0x10, "vzoom.c waveform gain  (semi)"),
+    (0x2406D380, 0x100, "gen.c GEN sequencer state (4 lanes, hit log)  (semi)"),
     (0x2406D180, 0x10, "master.c SSL state  [0x2406d580]"),
     (0x2406D190, 0x10, "master.c SSL state for bus 3 (Compressor: Both)  (semi)"),
     (0x2406F840, 0x100, "slicer.c Slice Str speeds (16 pads x 4 slots)  (semi)"),

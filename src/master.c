@@ -94,8 +94,10 @@ static const char *const srel_names[] = {"0.1 s", "0.3 s", "0.6 s", "1.2 s", "Au
 enum { C_STOCK, C_SSL, C_TYPES };
 static const char *const saver_names[] = {"Off", "1 min", "2 min", "5 min", "10 min", "30 min"};
 static const char *const ssview_names[] = {"Scope", "Meters", "Dark"};
-static const char *const mpage_names[] = {"Comp 2", "Dist 2", "Saver", "CV In", "Quantize"};
-#define MPAGES 5
+static const char *const mpage_names[] = {"Comp 2", "Dist 2", "Saver", "CV In", "Quantize", "Gen", "Gen 2",
+                                          "L1 Gen", "L1 Shape", "L1 Cond", "L2 Gen", "L2 Shape", "L2 Cond",
+                                          "L3 Gen", "L3 Shape", "L3 Cond", "L4 Gen", "L4 Shape", "L4 Cond"};
+#define MPAGES 19
 static const char *const qscale_names[] = {"Off", "Major", "Minor", "Dorian", "Phrygian", "Lydian", "Mixolyd",
                                            "Harm Min", "Pent Maj", "Pent Min", "Blues", "Whole"};
 static const char *const qroot_names[] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
@@ -131,10 +133,13 @@ static const struct pdef pdefs[] = {
 /* from interp_register (filter.c): the parameter table */
 void fx_register(void *table);                          /* fx.c */
 void fx_store_add(void *store);
+void gen_register(void *table);                         /* gen.c */
+void gen_store_add(void *store);
 
 void master_register(void *table)
 {
     fx_register(table);
+    gen_register(table);
     for (int k = 0; k < NPDEFS; k++) {
         const struct pdef *p = &pdefs[k];
         if (p->type == 0)
@@ -151,6 +156,7 @@ void master_store_add(void *store, unsigned param, int value)
     for (int k = 0; k < NPDEFS; k++)
         fw_store_add(store, pdefs[k].id, pdefs[k].def);
     fx_store_add(store);
+    gen_store_add(store);
 }
 
 /* --- pages (bitbox MK2): three Tools tabs next to Main / Rec / MIDIIn --------------------------------------------------
@@ -188,6 +194,12 @@ static const uint16_t more_pages[MPAGES][MSLOTS] = {
     {P_SAVER, P_SSVIEW},                                    /* Saver */
     {P_CVSCALE, P_CVOFFS},                                  /* CV In (cvq.c): scale / offset */
     {P_QSCALE, P_QROOT},                                    /* Quantize (cvq.c): the CV inputs' pitch */
+    {0x1d1, 0x1d2, 0x1d3},                                  /* Gen (gen.c): Run, Fill, Epoch */
+    {0x1d4, 0x1d5},                                         /* Gen 2: Seed, Mutate */
+#define GLANE(l) {0x1d6 + 9 * (l), 0x1d7 + 9 * (l), 0x1d8 + 9 * (l)}, {0x1d9 + 9 * (l), 0x1da + 9 * (l), 0x1db + 9 * (l)}, \
+                 {0x1dc + 9 * (l), 0x1dd + 9 * (l), 0x1de + 9 * (l)}
+    GLANE(0), GLANE(1), GLANE(2), GLANE(3),                 /* Ln Gen: Algo, Pad, Steps; Shape: Hits, Rotate, Rate;
+                                                               Cond: Cond, Prob, Vel */
 };
 
 static void set_slot(uint8_t *out, int k, unsigned id)
@@ -451,12 +463,14 @@ static float run1(struct dch *c, int type, float in, float drive, float tone_a, 
 void ss_audio(void *bus0);                               /* ss.c: screen saver monitor and timer */
 void modenv_tick(void);                                  /* modsrc.c: the pads' ENV sources */
 void dd_block(void);                                     /* dialdef.c: UI clock (audio blocks) */
+void gen_tick(void);                                     /* gen.c: the generative sequencer */
 
 void master_dist(void *bus0)
 {
     ss_audio(bus0);
     modenv_tick();
     dd_block();
+    gen_tick();
     struct dist *d = DS;
     int type = fw_store_get(SETTINGS, P_D_TYPE);
     if (type <= D_OFF || type >= D_TYPES) {
