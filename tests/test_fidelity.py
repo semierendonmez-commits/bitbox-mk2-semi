@@ -172,9 +172,9 @@ check("new knobs registered: Filter 2 (bipolar), Res 2, Drive",
 check("delay knobs (fx.c, registered first by master_register): 0x1ae..0x1b4",
       [k[0] for k in knobs[7:14]] == list(range(0x1AE, 0x1B5)), knobs[7:14])
 knobs = knobs[:7] + knobs[14:]
-check("master section knobs registered after them (master.c; Dist Type is a list; MK2 label 'Dist Lvl:')",
-      [k[0] for k in knobs[7:]] == [0x1A1, 0x1A2, 0x1A3, 0x1A5, 0x1A6, 0x19E, 0x1A8, 0x1A9, 0x1AB, 0x1AC]
-      and knobs[-1][2] == "Dist Lvl:"
+check("master section knobs registered after them (master.c; Dist Type is a list; MK2 label 'Dist Lvl:'; CV In)",
+      [k[0] for k in knobs[7:]] == [0x1A1, 0x1A2, 0x1A3, 0x1A5, 0x1A6, 0x19E, 0x1A8, 0x1A9, 0x1AB, 0x1AC, 0x1BB, 0x1BC]
+      and knobs[-3][2] == "Dist Lvl:"
       and [lists.get(i, ("",))[0] for i in (0x19D, 0x19F, 0x17D, 0x17F, 0x1A7)]
       == ["Comp Type:", "Ratio:", "Attack:", "Release:", "Dist Type:"], knobs[7:])
 pl = lists.get(0x1C4)

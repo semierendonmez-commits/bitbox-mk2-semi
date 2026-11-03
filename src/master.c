@@ -75,6 +75,10 @@ int fast_get(const void *store, unsigned param);       /* fastget.c: 0x08089388 
 #define P_SAVER    0x1b8                                    /* ss.c: screen saver time */
 #define P_SSVIEW   0x1b9                                    /* ss.c: Scope / Meters / Dark */
 #define P_MPAGE    0x1ba                                    /* Tools -> More: page */
+#define P_CVSCALE  0x1bb                                    /* cvq.c: CV input scale, % */
+#define P_CVOFFS   0x1bc                                    /* cvq.c: CV input offset, % of the range */
+#define P_QSCALE   0x1bd                                    /* cvq.c: pitch quantizer scale */
+#define P_QROOT    0x1be                                    /* cvq.c: quantizer root */
 
 #define FS         48000.0f
 #define SR_MS      48                                       /* samples per ms */
@@ -90,8 +94,11 @@ static const char *const srel_names[] = {"0.1 s", "0.3 s", "0.6 s", "1.2 s", "Au
 enum { C_STOCK, C_SSL, C_TYPES };
 static const char *const saver_names[] = {"Off", "1 min", "2 min", "5 min", "10 min", "30 min"};
 static const char *const ssview_names[] = {"Scope", "Meters", "Dark"};
-static const char *const mpage_names[] = {"Comp 2", "Dist 2", "Saver"};
-#define MPAGES 3
+static const char *const mpage_names[] = {"Comp 2", "Dist 2", "Saver", "CV In", "Quantize"};
+#define MPAGES 5
+static const char *const qscale_names[] = {"Off", "Major", "Minor", "Dorian", "Phrygian", "Lydian", "Mixolyd",
+                                           "Harm Min", "Pent Maj", "Pent Min", "Blues", "Whole"};
+static const char *const qroot_names[] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 
 /* type 0: a list (names, max = count) */
 struct pdef { uint16_t id; uint8_t type; const char *label; int min, max, def; const char *xml; const char *const *names; };
@@ -114,6 +121,10 @@ static const struct pdef pdefs[] = {
     {P_SAVER, 0, "Saver:", 0, 6, 3, "semisaver", saver_names},      /* default 5 min */
     {P_SSVIEW, 0, "View:", 0, 3, 0, "semisaverview", ssview_names},
     {P_MPAGE, 0, "Page:", 0, MPAGES, 0, "semimorepage", mpage_names},
+    {P_CVSCALE, 1, "CV Scale %:", 0, 400, 100, "semicvscale", 0},
+    {P_CVOFFS, 1, "CV Offset %:", -100, 100, 0, "semicvoffset", 0},
+    {P_QSCALE, 0, "Quantize:", 0, 12, 0, "semiqscale", qscale_names},
+    {P_QROOT, 0, "Root:", 0, 12, 0, "semiqroot", qroot_names},
 };
 #define NPDEFS (int)(sizeof pdefs / sizeof pdefs[0])
 
@@ -170,10 +181,13 @@ static void swap_id(uint8_t *out, unsigned from, unsigned to)
 }
 
 /* Tools -> More (tab 4, was Cmp2): a Page list and three settings of that page */
-static const uint16_t more_pages[MPAGES][3] = {
+#define MSLOTS 3                                            /* the tab shows 4 cells: Page + 3 */
+static const uint16_t more_pages[MPAGES][MSLOTS] = {
     {0x1a3, 0x1a5, 0x1a6},                                  /* Comp 2: Attack, Release, Gain */
-    {0x1ac, 0, 0},                                          /* Dist 2: Dist Lvl */
-    {P_SAVER, P_SSVIEW, 0},                                 /* Saver */
+    {0x1ac},                                                /* Dist 2: Dist Lvl */
+    {P_SAVER, P_SSVIEW},                                    /* Saver */
+    {P_CVSCALE, P_CVOFFS},                                  /* CV In (cvq.c): scale / offset */
+    {P_QSCALE, P_QROOT},                                    /* Quantize (cvq.c): the CV inputs' pitch */
 };
 
 static void set_slot(uint8_t *out, int k, unsigned id)
@@ -189,9 +203,9 @@ int master_tools_page(void *app, const void *msg, uint8_t *out, int tab)
         int pg = fw_store_get(SETTINGS, P_MPAGE);
         pg = pg < 0 || pg >= MPAGES ? 0 : pg;
         set_slot(out, 0, P_MPAGE);
-        for (int k = 0; k < 3; k++)
+        for (int k = 0; k < MSLOTS; k++)
             set_slot(out, k + 1, more_pages[pg][k]);
-        for (int k = 4; k < 8; k++)
+        for (int k = MSLOTS + 1; k < 8; k++)
             set_slot(out, k, 0);
     }
     if (*(const uint16_t *)((const uint8_t *)msg + 4) == TOOLS_CODE && (tab == TAB_COMP || tab == TAB_COMP2)

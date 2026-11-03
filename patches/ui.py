@@ -20,3 +20,9 @@ THUNKS = [(at, VCVT, "vzoom_scale_thunk") for at in (0x08062A60, 0x08062B16, 0x0
 
 PATCHES = [(at, struct.pack("<I", old), struct.pack("<I", sym[name] | 1)) for at, old, name in WORDS] \
     + [(at, old, bl(at, sym[name])) for at, old, name in THUNKS]
+
+# CV input scale / offset, pitch quantizer (src/cvq.c): the engine's CV event call
+HOOKS = [(0x08095C22, 0x080967E8, "cvq_event")]
+EXCLUSIVE = {0x080967E8}
+
+PATCHES += [(at, bl(at, stock), bl(at, sym[name])) for at, stock, name in HOOKS]

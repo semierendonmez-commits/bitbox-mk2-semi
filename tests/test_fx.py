@@ -340,5 +340,39 @@ if "mod_codes" in SYM:
           "after release", obj == 0x2406D200 + 6 * 16 and ptch == padx + 0x13C and other == 0 and levels[0] == 0.0
           and 0.2 < levels[1] < 0.6 and abs(levels[2] - 0.6) < 0.01 and levels[3] == 0.0, (hex(obj), levels))
 
+# --- CV In: scale / offset and the pitch quantizer (cvq.c, the engine's CV event call 0x08095c22)
+if "cvq_event" in SYM:
+    st = dict(ids_of(SET))
+    check("settings store: CV Scale 100, CV Offset 0, Quantize Off, Root C",
+          (st.get(0x1BB), st.get(0x1BC), st.get(0x1BD), st.get(0x1BE)) == (100, 0, 0, 0), st)
+    eng = e.new(0x10000)
+    def cvval(col):
+        return e.rf(eng + 0xD4AC + col * 0x14, 1)[0]
+    def cvpitch(col):
+        return e.rf(eng + (0x1AC7 + col) * 8 + 4, 1)[0]
+    e.call(0x080967E8, eng, 0, 3, 500, stack=(36,))
+    ref_v, ref_p = cvval(3), cvpitch(3)
+    e.call(SYM["cvq_event"], eng, 0, 3, 500, stack=(36,))
+    same = (cvval(3), cvpitch(3)) == (ref_v, ref_p)
+    put(SET, 0x1BB, 200)
+    put(SET, 0x1BC, -100)
+    e.call(SYM["cvq_event"], eng, 0, 3, 750, stack=(36,))
+    scaled = abs(cvval(3) - ref_v) < 1e-6                  # 750 x 2 - 1000 = 500
+    e.call(SYM["cvq_event"], eng, 0, 3, 0, stack=(36,))
+    low = cvval(3)                                          # 0 V -> -1000 (bottom)
+    put(SET, 0x1BD, 1)                                      # Major, root C
+    qs = []
+    for n in (36, 37, 39, 42, 46, 47):
+        e.call(SYM["cvq_event"], eng, 0, 3, 500, stack=(n,))
+        qs.append(round(cvpitch(3) * 12) + 24)
+    put(SET, 0x1BE, 2)                                      # root D
+    e.call(SYM["cvq_event"], eng, 0, 3, 500, stack=(37,))
+    qd = round(cvpitch(3) * 12) + 24
+    put(SET, 0x1BB, 100); put(SET, 0x1BC, 0); put(SET, 0x1BD, 0); put(SET, 0x1BE, 0)
+    check("CV In: defaults pass through; 200 % / -100 % maps 750 -> 500 and 0 -> -1000; Major C: 37->36, 39->38, "
+          "42->41, 46->45, 47->47; D major: 37 (C#) stays",
+          same and scaled and abs(low + 2 * ref_v) < 1e-6 and qs == [36, 36, 38, 41, 45, 47] and qd == 37,
+          (ref_v, ref_p, low, qs, qd))
+
 print(f"\n{'FAILED: ' + str(failures) if failures else 'all passed'}")
 sys.exit(1 if failures else 0)
