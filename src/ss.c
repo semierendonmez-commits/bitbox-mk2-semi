@@ -97,6 +97,7 @@ void ss_init(void)
     s->blk = 0;
     s->rx = s->rx_seen = 0;
     s->flash = 0;
+    s->keys = 0;
     if (fw_heap_free() >= 2u * 1024u * 1024u)
         s->fb = fw_alloc(W * H * 2, 0);
     s->magic = SSMAGIC;
@@ -347,18 +348,34 @@ void ss_audio(void *bus0)
         return;
     int t = fw_store_get(SETTINGS, P_SAVER);
     uint32_t keys = GPIOC_IDR & 0xcu;
-    if (keys != 0xcu || s->rx != s->rx_seen || t <= 0 || t >= SAVERS) {
-        s->rx_seen = s->rx;
-        if (s->on && keys != 0xcu)
-            s->swallow = 0;
-        wake();
-        if (t <= 0 || t >= SAVERS)
-            return;
+    if (keys == 0 && !s->on && !s->keys) {              /* HOME + INFO together: the saver now (also with Saver Off) */
+        s->keys = 1;
+        start();
     }
-    if (!s->on) {
-        if (++s->idle >= saver_min[t] * BLOCKS_PER_MIN)
-            start();
+    if (s->keys && !s->on)
+        s->keys = 0;                                    /* woken by a touch */
+    if (s->keys == 1 && keys == 0xcu)
+        s->keys = 2;                                    /* both released: the next key / MIDI wakes */
+    if (s->keys == 2 && (keys != 0xcu || s->rx != s->rx_seen)) {
+        s->rx_seen = s->rx;
+        s->keys = 0;
+        wake();
         return;
+    }
+    if (!s->keys) {
+        if (keys != 0xcu || s->rx != s->rx_seen || t <= 0 || t >= SAVERS) {
+            s->rx_seen = s->rx;
+            if (s->on && keys != 0xcu)
+                s->swallow = 0;
+            wake();
+            if (t <= 0 || t >= SAVERS)
+                return;
+        }
+        if (!s->on) {
+            if (++s->idle >= saver_min[t] * BLOCKS_PER_MIN)
+                start();
+            return;
+        }
     }
     /* the monitor */
     float lo = 0.0f, hi = 0.0f, lo2 = 0.0f, hi2 = 0.0f, pl = 0.0f, pr = 0.0f;
@@ -428,8 +445,63 @@ void ss_rx_isr(void *huart)
 typedef int (*setaddr_fn)(void *h, uint32_t addr, unsigned layer);
 #define fw_set_address ((setaddr_fn)FN(0x0804c03a))    /* [mk2] */
 
+/* --- live meters in the status bar, drawn into every new text-layer frame (layer 2, ARGB1555, transparent around):
+   GEN's four lanes (x 204..283: the cycle's steps, its hits, the playhead) and the selected pad's modulation sources
+   ENV / CHAOS / RAND / NET as bipolar bars (x 290..317). The stock bar leaves x 200..319 empty. */
+int modsrc_values(unsigned row, unsigned col, float out[4]);   /* modsrc.c */
+#define OV_X 204
+#define OV_W 80
+static void ov_rect(uint16_t *fb, int x0, int y0, int x1, int y1, uint16_t c)
+{
+    for (int y = y0; y < y1; y++)
+        for (int x = x0; x < x1; x++)
+            fb[y * W + x] = c;
+}
+
+static void overlay(uint16_t *fb)
+{
+    static const uint16_t bar_c[4] = {
+        0x8000u | (2u << 10) | (26u << 5) | 30u,           /* ENV cyan */
+        0x8000u | (31u << 10) | (16u << 5) | 2u,           /* CHAOS orange */
+        0x8000u | (31u << 10) | (28u << 5) | 2u,           /* RAND yellow */
+        0x8000u | (8u << 10) | (31u << 5) | 8u};           /* NET green */
+    const uint16_t dim = 0x8000u | (6u << 10) | (6u << 5) | 7u, mid = 0x8000u | (14u << 10) | (14u << 5) | 15u;
+    ov_rect(fb, OV_X - 2, 1, W, 18, 0);
+    for (int l = 0; l < 4; l++) {
+        int n, pos;
+        uint32_t m;
+        if (!gen_lane_view(l, &n, &pos, &m))
+            continue;
+        int cw = OV_W / n, y = 2 + l * 4;
+        cw = cw < 1 ? 1 : cw;
+        for (int i = 0; i < n && i * cw < OV_W; i++) {
+            uint16_t c = i == pos ? 0xffffu : (m >> i & 1) ? mid : dim;
+            ov_rect(fb, OV_X + i * cw, y, OV_X + i * cw + (cw > 2 ? cw - 1 : cw), y + 3, c);
+        }
+    }
+    unsigned cell = *(volatile uint16_t *)((volatile uint8_t *)0x24015170u + 0x28);
+    float v[4];
+    int mask = ((cell >> 8) & 0x1f) == 0 ? modsrc_values((cell >> 4) & 0xf, cell & 0xf, v) : 0;
+    for (int k = 0; k < 4; k++) {
+        int x = 290 + k * 7;
+        ov_rect(fb, x, 9, x + 5, 10, dim);              /* the zero line */
+        if (!(mask >> k & 1))
+            continue;
+        float a = v[k] < -1.0f ? -1.0f : v[k] > 1.0f ? 1.0f : v[k];
+        int h = (int)(a * 7.0f);
+        if (h > 0)
+            ov_rect(fb, x, 9 - h, x + 5, 9, bar_c[k]);
+        else if (h < 0)
+            ov_rect(fb, x, 10, x + 5, 10 - h, bar_c[k]);
+        else
+            ov_rect(fb, x, 9, x + 5, 10, bar_c[k]);
+    }
+}
+
 int ss_set_address(void *h, uint32_t addr, unsigned layer)
 {
+    if (layer == 1 && addr && !SS->on)
+        overlay((uint16_t *)addr);
     int r = fw_set_address(h, addr, layer);
     volatile struct ss *s = SS;
     if (s->magic == SSMAGIC && s->on) {

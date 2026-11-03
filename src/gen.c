@@ -163,13 +163,15 @@ static const struct gpdef glane[NLP] = {
     {0, 1, "Vel:", 1, 127, 100, "vel", 0},
 };
 static const int8_t lane_pad[NL] = {1, 2, 5, 9};     /* defaults: pad 1 = bottom left, 2 its right, 5 / 9 above */
+/* the Pad settings' xml names changed in sO ("semig1padb" ..): settings saved by sK..sN numbered the pads from the
+   top left; their old values would now pick other pads, so they are not read back (the defaults apply) */
 static const int8_t lane_hits[NL] = {4, 2, 8, 3};
 static const int8_t lane_rot[NL] = {0, 4, 0, 2};
 static const char *const lane_xml[NL][NLP] = {
-    {"semig1algo", "semig1pad", "semig1steps", "semig1hits", "semig1rot", "semig1rate", "semig1cond", "semig1prob", "semig1vel"},
-    {"semig2algo", "semig2pad", "semig2steps", "semig2hits", "semig2rot", "semig2rate", "semig2cond", "semig2prob", "semig2vel"},
-    {"semig3algo", "semig3pad", "semig3steps", "semig3hits", "semig3rot", "semig3rate", "semig3cond", "semig3prob", "semig3vel"},
-    {"semig4algo", "semig4pad", "semig4steps", "semig4hits", "semig4rot", "semig4rate", "semig4cond", "semig4prob", "semig4vel"},
+    {"semig1algo", "semig1padb", "semig1steps", "semig1hits", "semig1rot", "semig1rate", "semig1cond", "semig1prob", "semig1vel"},
+    {"semig2algo", "semig2padb", "semig2steps", "semig2hits", "semig2rot", "semig2rate", "semig2cond", "semig2prob", "semig2vel"},
+    {"semig3algo", "semig3padb", "semig3steps", "semig3hits", "semig3rot", "semig3rate", "semig3cond", "semig3prob", "semig3vel"},
+    {"semig4algo", "semig4padb", "semig4steps", "semig4hits", "semig4rot", "semig4rate", "semig4cond", "semig4prob", "semig4vel"},
 };
 
 /* --- registration / settings store (from master_register / master_store_add) ------------------------------------ */
@@ -1118,6 +1120,7 @@ static void pad_param(uint8_t *eng, uint32_t cell, unsigned param, int value)
 }
 
 #define P_START   0x71                                /* the pads' Start, 0..1000 of the sample */
+#define P_POLY    0x82                                /* Sample pads' Poly Mode (0 Mono) */
 #define P_PADMODE 0x6d                                /* Pad Mode: 0 Sample, 1 Clip, 2 Slicer, 3 Granular */
 #define SLICE0    36                                  /* a Slicer pad plays slice k for note 36 + k (0: the selected one) */
 /* the engine's Sample pad object for a cell (engine +0xfaf8: list head +8, next +0x10; cell +0x18; the Sample /
@@ -1128,15 +1131,53 @@ static void pad_param(uint8_t *eng, uint32_t cell, unsigned param, int value)
 #define PAD_FRAMES 0x100
 /* the Clip / Slicer class object of a cell (vtable 0x080df17c): its slices at +0x24c (frame starts), count +0x250 */
 #define VT_CLIP 0x080df17cu
-static int slice_count(uint8_t *eng, uint32_t cell)
+static const uint8_t *clip_pad(uint8_t *eng, uint32_t cell)
 {
     uint8_t *p = *(uint8_t *const *)(eng + PADS_LIST + 8);
     for (int guard = 0; p && guard < 128; guard++, p = *(uint8_t *const *)(p + 0x10))
-        if (*(const uint32_t *)p == VT_CLIP && *(const uint32_t *)(p + 0x18) == cell) {
-            int n = *(const int32_t *)(p + 0x250);
-            return n >= 1 && n <= 128 ? n : 0;
-        }
+        if (*(const uint32_t *)p == VT_CLIP && *(const uint32_t *)(p + 0x18) == cell)
+            return p;
     return 0;
+}
+
+static int slice_count(uint8_t *eng, uint32_t cell)
+{
+    const uint8_t *p = clip_pad(eng, cell);
+    int n = p ? *(const int32_t *)(p + 0x250) : 0;
+    return n >= 1 && n <= 128 ? n : 0;
+}
+
+/* Breakcut's source, as BBCut: the sample is a loop of whole bars (its length at the song tempo, rounded: a 2-bar
+   break = 32 sixteenths); the cycle walks through it bar by bar and a cut's segment is a step of that loop, so a cut
+   jumps by exactly its musical distance. Returns the frame the cut starts at (frames = the sample's length). */
+static int cut_frame(uint8_t *eng, int frames, int st, int n, int32_t cycle, int seg)
+{
+    float tempo = *(volatile float *)(eng + E_TEMPO);
+    if (!(tempo > 20.0f && tempo < 400.0f))
+        tempo = 120.0f;
+    float beats = (float)frames * (1.0f / 48000.0f) * tempo * (1.0f / 60.0f);
+    int bars = (int)(beats * 0.25f + 0.5f);
+    bars = bars < 1 ? 1 : bars > 16 ? 16 : bars;
+    int loop = bars * BAR / st;                          /* GEN steps in the loop */
+    loop = loop < 1 ? 1 : loop;
+    int src = ((int)(cycle % loop) * (n % loop) % loop + seg) % loop;
+    return frames / loop * src + frames % loop * src / loop;
+}
+
+/* a Slicer pad's slice for a frame: the last slice starting at or before it (the fork's / BBenCut's rule) */
+static int slice_at(uint8_t *eng, uint32_t cell, int frame)
+{
+    const uint8_t *p = clip_pad(eng, cell);
+    if (!p)
+        return -1;
+    const uint32_t *starts = *(const uint32_t *const *)(p + 0x24c);
+    int n = *(const int32_t *)(p + 0x250), k = 0;
+    if (!starts || n < 1 || n > 128)
+        return -1;
+    for (int i = 0; i < n; i++)
+        if ((int)starts[i] <= frame)
+            k = i;
+    return k;
 }
 
 static uint8_t *sample_pad(uint8_t *eng, uint32_t cell)
@@ -1160,6 +1201,7 @@ static void cut_restore(uint8_t *eng, volatile struct lane *ln)
             return;
         }
     pad_param(eng, cell, P_START, ln->cut_orig);
+    pad_param(eng, cell, P_POLY, fast_get(pad_record(cell), P_POLY));   /* the pad's own Poly Mode back */
 }
 
 
@@ -1391,8 +1433,12 @@ void gen_tick(void)
             }
             if (algo == A_BREAK && p.seg[pos] >= 0 && setting(P_CUT) == 1 && (mode == 0 || slicer)) {   /* not Clip / Granular */
                 if (slicer) {
-                    /* the cut's slice: the segment's place among the pad's slices (Steps 16, 8 slices: 2 steps a slice) */
-                    nt = SLICE0 + (nslices ? p.seg[pos] * nslices / n : p.seg[pos]);
+                    /* the cut's slice: the one playing at the cut's place in the loop */
+                    uint8_t *sp = sample_pad(eng, cell);
+                    int frames = sp ? *(volatile int32_t *)(sp + PAD_FRAMES) : 0, k = -1;
+                    if (frames > 0)
+                        k = slice_at(eng, cell, cut_frame(eng, frames, st, n, cycle, p.seg[pos]));
+                    nt = SLICE0 + (k >= 0 ? k : nslices ? p.seg[pos] * nslices / n : p.seg[pos]);
                 } else {
                     uint8_t *sp = sample_pad(eng, cell);
                     int frames = sp ? *(volatile int32_t *)(sp + PAD_FRAMES) : 0;
@@ -1408,9 +1454,10 @@ void gen_tick(void)
                                 }
                             if (!other)
                                 ln->cut_orig = *(volatile int32_t *)(sp + PAD_START);
+                            pad_param(eng, cell, P_POLY, 0);   /* Mono while cutting: each cut stops the last */
                         }
                         /* the cut's segment: Start in frames (the engine's unit; the screen's Start stays) */
-                        pad_param(eng, cell, P_START, frames / n * p.seg[pos] + frames % n * p.seg[pos] / n);
+                        pad_param(eng, cell, P_START, cut_frame(eng, frames, st, n, cycle, p.seg[pos]));
                         ln->cut_cell = VALID | cell;
                     }
                 }

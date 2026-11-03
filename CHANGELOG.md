@@ -4,6 +4,24 @@
 
 Builds for the **bitbox MK2** on top of the stock firmware **2.3.4**, named `2.3.4-s<build>`.
 
+### 2.3.4-sO (2026-11-04)
+
+- **Breakcut cuts the break musically** (as BBCut): the sample is taken as a loop of whole bars (its length at the
+  song tempo, rounded: a 2-bar break = 32 sixteenths); each cycle walks through it bar by bar and a cut jumps by
+  exactly its musical distance (sN: Steps divided the whole sample, so a 2-bar break with Steps 16 jumped in
+  eighths). Slicer pads: the slice playing at that place (the last slice starting at or before it), not slice k.
+- **Tight cuts**: a Sample pad is Mono while Breakcut cuts it (each cut stops the last; its Poly Mode comes back
+  with Run / Cut off).
+- **Live meters in the status bar** (every page, top right): GEN's four lanes (the cycle's steps, its hits, the
+  playhead) and the selected pad's modulation sources ENV / CHAOS / RAND / NET as bars (cyan / orange / yellow /
+  green; shown once the source is routed on that pad).
+- **HOME + INFO together** start the screen saver at once (also with Saver Off); the next key, touch or MIDI wakes it.
+- **Fix: GEN lanes on the wrong pads after an update.** The lane Pad settings saved by sK..sN numbered the pads from
+  the top left; read back by the new numbering they picked other pads (lane 1 played pad 12). Their names changed
+  (semig1padb ..), so old values are ignored and the defaults (pads 1, 2, 5, 9) apply once.
+- Checked in the simulation: GEN follows an external MIDI clock (MIDI Start resets, 24 clocks a beat move the song
+  position GEN reads; the hits land on the clocked beats).
+
 ### 2.3.4-sN (2026-11-03)
 
 - **Call+Resp across pads** (**Ln Resp → Resp Pad**: Same, Sel, 1–16): the three calls play on the lane's pad, the

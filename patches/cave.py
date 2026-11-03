@@ -22,12 +22,13 @@ Builds (portkit's micro history up to pkZD: portkit-micro CHANGELOG.md):
       the sample / slices (Cut), Call+Resp melodies (Scale, Range); Tape / BBD delay character
   N = GEN: Resp Pad, Breakcut procedures (BBCut), Acid, Turing, Learn, Turn, Drummap Y; Codec delay, Fidelity Phone /
       ADPCM / u-Law; MOD sources CHAOS / RAND / NET; saver views Barcode / Matrix / Rain / Pulse; colour themes
+  O = Breakcut follows the break's bars, Mono while cutting, slices by position; status bar meters; HOME + INFO saver
 """
 import os
 
 from thumb import ROOT, STOCK_END, bl, symbols
 
-BUILD = os.environ.get("SEMI_TAG", "N").encode()   # SEMI_TAG: test builds (sT1 ..)
+BUILD = os.environ.get("SEMI_TAG", "O").encode()   # SEMI_TAG: test builds (sT1 ..)
 
 
 def slot(text, size=16):

@@ -241,3 +241,28 @@ void modenv_tick(void)
         e->value = lv;
     }
 }
+
+/* the status bar's live meters (ss.c): the selected pad's ENV, CHAOS, RAND, NET values (-1..1); bit k set = source k
+   exists for that pad (ENV once the pad has an ENV route, the others once they are routed) */
+int modsrc_values(unsigned row, unsigned col, float out[4])
+{
+    int mask = 0;
+    for (int k = 0; k < 4; k++)
+        out[k] = 0.0f;
+    if (row > 3 || col > 3)
+        return 0;
+    volatile struct envsrc *e = &ENVS[row * 4 + col];
+    if (e->pad && *(const uint32_t *)(e->pad + 0x18) == ((row << 8) | col)) {
+        out[0] = e->value;
+        mask |= 1;
+    }
+    if (XMAGIC == 0x58535243u)
+        for (int k = 0; k < NX; k++) {
+            volatile struct xsrc *x = &XSRC[k];
+            if (x->pad && *(const uint32_t *)(x->pad + 0x18) == ((row << 8) | col) && x->kind < 3) {
+                out[1 + x->kind] = x->value;
+                mask |= 2 << x->kind;
+            }
+        }
+    return mask;
+}

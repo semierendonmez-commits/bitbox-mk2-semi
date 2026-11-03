@@ -13,7 +13,7 @@ address translation; the UI is placed anew for the MK2's screens and its two key
 > Unofficial. Not affiliated with or supported by 1010music. Running modified firmware is at your own risk and may
 > affect your warranty. Keep your stock `BITBOXMK2.bin` and flash it back before sending a unit in for service.
 
-## Status: build 2.3.4-sN
+## Status: build 2.3.4-sO
 
 **sN runs on a unit** (hardware test, 2026-11-03). The features themselves are
 **emulation** = verified in the Unicorn tests and the Renode simulation of the MK2; hardware checks per feature follow.
@@ -52,7 +52,8 @@ address translation; the UI is placed anew for the MK2's screens and its two key
 | **Delay type Codec** (ADPCM generation loss, frame loss), **Fidelity Phone / ADPCM / u-Law** | FX1 → INFO; pad Conf list | emulation (Unicorn) |
 | **MOD sources CHAOS, RAND, NET** | pad → MOD page → Source | emulation (Unicorn) |
 | **Saver views** Barcode / Matrix / Rain / Pulse; **colour themes** (10) | Tools → More → Saver | emulation (Renode screenshots) |
-| Splash / Menu version **semi mod 2.3.4-sN** | boot, Menu lower right | emulation |
+| Status bar live meters (GEN lanes, ENV / CHAOS / RAND / NET); HOME + INFO = screen saver | every page | emulation (Renode) |
+| Splash / Menu version **semi mod 2.3.4-sO** | boot, Menu lower right | emulation |
 
 Not ported yet: the recording sends / monitor (recmon.c), pads 9–16 (not needed: the MK2 has 16 pads).
 

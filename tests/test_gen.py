@@ -333,18 +333,17 @@ run(0, 8 * 16 * 240)
 hits = [(t, nt) for t, ty, c, v, nt in notes if ty == 0x43]
 starts = [(t, val) for t, ty, c, prm, val in params if prm == 0x71]
 okpair = all(any(st == ht for st, _ in starts) for ht, _ in hits)
-segs = [val // 10000 for _, val in starts]
-firsts = [val for t, val in starts if t % (16 * 240) < 20]
-moved = sum(1 for (t, val) in starts if val // 10000 != (t // 240) % 16)
-check("Breakcut + Cut: a Start (frames) with every hit, multiples of 160000 / 16, each cycle from 0, "
-      "some cuts moved (Mutate 60 %)",
-      hits and okpair and all(v % 10000 == 0 for _, v in starts) and set(firsts) == {0} and moved >= 4,
-      (len(hits), len(starts), segs[:24], moved))
+firsts = [(t // 3840, val) for t, val in starts if t % (16 * 240) < 20]
+moved = sum(1 for (t, val) in starts if val // 5000 != ((t // 3840) * 16 + (t // 240) % 16) % 32)
+check("Breakcut + Cut: a Start (frames) with every hit; the 160000-frame sample is 2 bars at 120 BPM (32 steps of 5000 "
+      "frames): each cycle starts at its bar (0, 80000, 0, ...), some cuts moved (Mutate 60 %)",
+      hits and okpair and all(v % 5000 == 0 for _, v in starts) and all(v == (c % 2) * 80000 for c, v in firsts)
+      and moved >= 4, (len(hits), len(starts), firsts[:4], moved))
 params.clear()
 sset(0x1D1, 0)
 run(8 * 16 * 240, 8 * 16 * 240 + 40)
-check("Run Off: the pad's own Start (1234 frames) back", [(prm, val) for t, ty, c, prm, val in params] == [(0x71, 1234)],
-      params)
+check("Run Off: the pad's own Start (1234 frames) and Poly Mode back (Mono while cutting)",
+      [(prm, val) for t, ty, c, prm, val in params] == [(0x71, 1234), (0x82, 0)], params)
 sset(0x1D1, 1)
 sset(0x1FA, 0)
 params.clear()
