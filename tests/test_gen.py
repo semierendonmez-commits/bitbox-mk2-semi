@@ -64,9 +64,9 @@ def sset(pid, v):
     e.call(0x080893B2, SET, pid, v & 0xFFFFFFFF)
 
 
-check("settings store: capacity 0x80, 116 entries (59 + GEN 57), GEN defaults (Run Off, lane 1 Euclid on pad 1, "
+check("settings store: capacity 0x80, 117 entries (60 + GEN 57), GEN defaults (Run Off, lane 1 Euclid on pad 1, "
       "Cut On, Scale Pent Min, Range 12)",
-      cap == 0x80 and cnt == 116 and sget(0x1D1) == 0 and sget(0x1D6) == 1 and sget(0x1D7) == 1
+      cap == 0x80 and cnt == 117 and sget(0x1D1) == 0 and sget(0x1D6) == 1 and sget(0x1D7) == 1
       and sget(0x1FA) == 1 and sget(0x1FB) == 9 and sget(0x1FC) == 12
       and sget(0x1D8) == 16 and sget(0x1D9) == 4, (cap, cnt, [sget(p) for p in range(0x1D1, 0x1DF)]))
 

@@ -42,6 +42,8 @@ REGIONS = [                                         # start, size, owner (micro 
     (0x2001EB40, 0x4A4, "gen.c Learn tables (4 lanes) + magic  (semi)"),
     (0x2001F000, 0x2F4, "modsrc.c CHAOS / RAND / NET source pool + magic  (semi)"),
     (0x2001F300, 0x64, "fx.c delay Codec line states + magic  (semi)"),
+    (0x2001C380, 0x100, "ss.c DATASCREEN view state (pad objects, rain)  (semi)"),
+    (0x2001F3F8, 0x4, "theme.c theme applied  (semi)"),
     (0x2001C480, 0xB80, "sendmod.c send modulation routes (24 pads x 3 sends x 3 slots)  (semi)"),
     (0x2001F400, 0xBA0, "sendmod.c a pad object's copy while a send route is resolved  (semi)"),
     (0x2001C180, 0x10, "master.c SSL state  [0x2001c580]"),

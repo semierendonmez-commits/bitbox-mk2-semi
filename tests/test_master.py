@@ -48,8 +48,8 @@ def put(pid, v):
 e.stub(0x08045012, lambda uc: None)                       # its last call (not about the store)
 e.call(0x08089CBC, SET)
 cnt, ids = store_ids(SET)
-check("settings store: 36 stock entries + 15 new + FX Out + Saver, View, More Page + CV In 4 + GEN 57 (116 of 128), "
-      "0x17b there", cnt == 116 and 0x17B in ids and 0x96 in ids, cnt)
+check("settings store: 36 stock entries + 15 new + FX Out + Saver, View, More Page + CV In 4 + Theme + GEN 57 (117 of 128), "
+      "0x17b there", cnt == 117 and 0x17B in ids and 0x96 in ids, cnt)
 check("new entries with defaults: compressor = stock (-4 dB, 4:1, 10 ms, 250 ms, -4 dB), distortion Off / 12 dB / "
       "Tone open / Mix 100 % / Level 0 dB",
       [ids.get(COMP[k]) for k in ("thresh", "ratio", "attack", "release", "gain")] == [-4000, 4, 10, 250, -4000]
@@ -85,8 +85,9 @@ ids4b, _ = tools_tab(4)
 put(0x1BA, 2)
 ids4c, vals4c = tools_tab(4)
 put(0x1BA, 0)
-check("More: page Dist 2 = Dist Lvl; page Saver = Saver (default 5 min), View",
-      ids4b == [0x1BA, 0x1AC, 0, 0] and ids4c == [0x1BA, 0x1B8, 0x1B9, 0] and vals4c[:3] == [2, 3, 0], (ids4b, ids4c, vals4c))
+check("More: page Dist 2 = Dist Lvl; page Saver = Saver (default 5 min), View, Theme",
+      ids4b == [0x1BA, 0x1AC, 0, 0] and ids4c == [0x1BA, 0x1B8, 0x1B9, 0x20A] and vals4c[:4] == [2, 3, 0, 0],
+      (ids4b, ids4c, vals4c))
 put(0x19D, 1)
 ids3, vals3 = tools_tab(3)
 ids4, vals4 = tools_tab(4)

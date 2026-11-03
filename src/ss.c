@@ -2,7 +2,10 @@
  * Screen saver with a live monitor (bitbox-mk2-semi; idea from vwal's patcher, own code). bitbox MK2 2.3.4.
  *
  * - Settings (Tools -> More, page "Saver"): Saver (Off, 1, 2, 5, 10, 30 min without input), View (Scope: a sweeping
- *   oscilloscope of Out1/2 with level meters; Meters: the meters only; Dark: black).
+ *   oscilloscope of Out1/2 with level meters; Meters: the meters only; Dark: black; and the DATASCREEN views of the
+ *   pads (Ikeda / datamatics style, white on black): Barcode (a scrolling column a block, a band per pad that sounds,
+ *   a full white line on a hit), Matrix (16 pads x the last 32 sixteenths), Rain (a falling byte down the pad's
+ *   column for every hit), Pulse (GEN's four lanes as rings, the playhead going round)).
  * - Display: the LTDC shows two ARGB1555 layers (320 x 240, layer 1 the backgrounds, layer 2 the text; HAL LTDC,
  *   the buffers are set up once). While the saver runs, layer 1 shows a buffer of ours (heap, 150 KB, allocated at
  *   boot) and layer 2 is switched off; on wake both are put back (registers only: the UI's own buffers are never
@@ -53,7 +56,7 @@ int fast_get(const void *store, unsigned param);
 
 static const uint16_t saver_min[] = {0, 1, 2, 5, 10, 30};
 #define SAVERS 6
-enum { V_SCOPE, V_METERS, V_DARK, VIEWS };
+enum { V_SCOPE, V_METERS, V_DARK, V_BARCODE, V_MATRIX, V_RAIN, V_PULSE, VIEWS };
 
 struct ss {
     uint32_t magic;
@@ -113,6 +116,8 @@ static void rect(uint16_t *fb, int x0, int y0, int x1, int y1, uint16_t c)
             fb[y * W + x] = c;
 }
 
+static void ds_start(void);
+
 static void wake(void)
 {
     volatile struct ss *s = SS;
@@ -132,7 +137,11 @@ static void start(void)
     if (!fb || s->on)
         return;
     s->view = (uint8_t)fw_store_get(SETTINGS, P_SSVIEW);
+    if (s->view >= VIEWS)
+        s->view = V_SCOPE;
     fill(fb, BLACK);
+    if (s->view >= V_BARCODE)
+        ds_start();
     if (s->view == V_SCOPE) {
         rect(fb, 0, H / 2, SCOPE_W, H / 2 + 1, GRID);
         rect(fb, 0, H / 4, SCOPE_W, H / 4 + 1, DIM);
@@ -172,6 +181,161 @@ static void meters(uint16_t *fb, float l, float r)
             for (int x = x0; x < x0 + 8; x++)
                 fb[y * W + x] = c;
         }
+    }
+}
+
+/* --- DATASCREEN views: the pads' activity from the engine's pad objects (Sample class: voices +0x6c; Clip / Slicer
+   class: the two sub-voices' active bytes +0x260 / +0x670), found once when the saver starts */
+struct ds {
+    uint8_t *pa[16], *pb[16];
+    uint8_t last[16];
+    int16_t rain[16][2];
+    uint8_t rbits[16][2];
+    int32_t step;
+    uint32_t lcg;
+};
+#define DS ((struct ds *)0x2001c380u)                   /* [mk2] patch RAM, 0x100 (tests/test_ram.py) */
+_Static_assert(sizeof(struct ds) <= 0x100, "data view state fits its slot");
+#define ENGINE    (*(uint8_t *const *)(0x24023cb8u + 0xa204u))
+#define WHITE  0xffffu
+#define GREY   0x8000u | (10u << 10) | (10u << 5) | 10u
+int gen_lane_view(int l, int *n, int *pos, uint32_t *hits);   /* gen.c */
+
+static void ds_start(void)
+{
+    struct ds *d = DS;
+    uint8_t *eng = ENGINE;
+    for (int k = 0; k < 16; k++) {
+        d->pa[k] = d->pb[k] = 0;
+        d->last[k] = 0;
+        d->rain[k][0] = d->rain[k][1] = -1;
+    }
+    d->step = -1;
+    d->lcg = 12345u;
+    if (!eng)
+        return;
+    uint8_t *p = *(uint8_t *const *)(eng + 0xfaf8 + 8);
+    for (int guard = 0; p && guard < 128; guard++, p = *(uint8_t *const *)(p + 0x10)) {
+        uint32_t id = *(const uint32_t *)(p + 0x18), row = (id >> 8) & 0xff, col = id & 0xff;
+        if (row > 3 || col > 3)
+            continue;
+        if (*(const uint32_t *)p == 0x080df054u)
+            d->pa[row * 4 + col] = p;
+        else
+            d->pb[row * 4 + col] = p;
+    }
+}
+
+/* pads sounding (bit k = pad k, k = row * 4 + col, row 0 at the bottom) and the hits since the last block */
+static uint32_t ds_pads(uint32_t *hits)
+{
+    struct ds *d = DS;
+    uint32_t on = 0, hit = 0;
+    for (int k = 0; k < 16; k++) {
+        int v = 0;
+        if (d->pa[k]) {
+            int x = *(const int32_t *)(d->pa[k] + 0x6c);
+            v = x < 0 ? 0 : x > 64 ? 64 : x;
+        }
+        if (d->pb[k])
+            v += (d->pb[k][0x260] ? 1 : 0) + (d->pb[k][0x670] ? 1 : 0);
+        if (v)
+            on |= 1u << k;
+        if (v > d->last[k])
+            hit |= 1u << k;
+        d->last[k] = (uint8_t)v;
+    }
+    *hits = hit;
+    return on;
+}
+
+static void ds_draw(uint16_t *fb, uint32_t blk)
+{
+    struct ds *d = DS;
+    volatile struct ss *s = SS;
+    uint32_t hits, on = ds_pads(&hits);
+    switch (s->view) {
+    case V_BARCODE: {                                   /* a column a block, a band (15 px) per pad from the bottom */
+        int x = (int)s->col;
+        for (int y = 0; y < H; y++) {
+            int k = 15 - y / 15;
+            fb[y * W + x] = hits ? WHITE : (on >> k & 1) && (y % 15) ? WHITE : BLACK;
+        }
+        s->col = (uint32_t)((x + 1) % W);
+        break;
+    }
+    case V_MATRIX: {                                    /* 32 columns of 10 px (sixteenths), 16 rows of 15 px */
+        uint8_t *eng = ENGINE;
+        int32_t st = eng ? *(volatile int32_t *)(eng + 0x30) / 240 : (int32_t)(blk / 8);
+        int c = (int)(st % 32);
+        if (st != d->step) {
+            d->step = st;
+            for (int y = 0; y < H; y++)                 /* a new column: clear it, the playhead line after it */
+                for (int x = c * 10; x < c * 10 + 10; x++)
+                    fb[y * W + x] = BLACK;
+            int nx = ((c + 1) % 32) * 10;
+            for (int y = 0; y < H; y++)
+                fb[y * W + nx] = GREY;
+        }
+        for (int k = 0; k < 16; k++)
+            if (hits >> k & 1)
+                rect(fb, c * 10 + 1, (15 - k) * 15 + 2, c * 10 + 9, (15 - k) * 15 + 13, WHITE);
+        break;
+    }
+    case V_RAIN: {                                      /* 16 columns of 20 px: a falling byte for every hit */
+        for (int k = 0; k < 16; k++) {
+            if (hits >> k & 1) {
+                int slot = d->rain[k][0] < 0 ? 0 : 1;
+                d->lcg = d->lcg * 1664525u + 1013904223u;
+                d->rain[k][slot] = 0;
+                d->rbits[k][slot] = (uint8_t)(d->lcg >> 24);
+            }
+            for (int j = 0; j < 2 && (blk & 1u); j++) {   /* 1 px every other block: ~190 px/s */
+                int y = d->rain[k][j];
+                if (y < 0)
+                    continue;
+                int x0 = (k % 4 + (k / 4) * 4) * 20;   /* pad order: bottom row left to right, then up */
+                rect(fb, x0 + 2, y, x0 + 18, y + 6 < H ? y + 6 : H, BLACK);
+                y += 1;
+                if (y + 6 >= H) {
+                    d->rain[k][j] = -1;
+                    continue;
+                }
+                d->rain[k][j] = (int16_t)y;
+                for (int b = 0; b < 8; b++)            /* the byte: 8 cells of 2 px, lit for a 1 */
+                    rect(fb, x0 + 2 + b * 2, y, x0 + 3 + b * 2, y + 6, d->rbits[k][j] >> b & 1 ? WHITE : GREY);
+            }
+        }
+        break;
+    }
+    case V_PULSE: {                                     /* GEN's lanes as rings around the centre */
+        static const int8_t sn[32] = {0, 20, 39, 56, 71, 83, 92, 98, 100, 98, 92, 83, 71, 56, 39, 20,
+                                      0, -20, -39, -56, -71, -83, -92, -98, -100, -98, -92, -83, -71, -56, -39, -20};
+        if ((blk & 7u) != 0)
+            break;
+        for (int l = 0; l < 4; l++) {
+            int n, pos;
+            uint32_t m;
+            int rad = 34 + l * 24;
+            if (!gen_lane_view(l, &n, &pos, &m))
+                continue;
+            for (int i = 0; i < n; i++) {
+                int a = i * 32 / n, ca = (a + 24) % 32;   /* step 0 at the top, clockwise */
+                int x = W / 2 + sn[a] * rad / 100, y = H / 2 - sn[ca] * rad / 100;
+                rect(fb, x - 3, y - 3, x + 4, y + 4, BLACK);
+                if (i == pos)
+                    rect(fb, x - 3, y - 3, x + 4, y + 4, m >> i & 1 ? WHITE : GREY);
+                else
+                    rect(fb, x - 1, y - 1, x + 2, y + 2, m >> i & 1 ? GREY : DIM);
+            }
+        }
+        for (int k = 0; k < 16; k++)                    /* the pads that sound: the centre square */
+            rect(fb, W / 2 - 8 + (k % 4) * 4, H / 2 + 4 - (k / 4) * 4, W / 2 - 5 + (k % 4) * 4,
+                 H / 2 + 7 - (k / 4) * 4, on >> k & 1 ? WHITE : DIM);
+        break;
+    }
+    default:
+        break;
     }
 }
 
@@ -221,6 +385,10 @@ void ss_audio(void *bus0)
         }
     }
     uint16_t *fb = s->fb;
+    if (s->view >= V_BARCODE) {
+        ds_draw(fb, ++s->blk);
+        return;
+    }
     s->peak_l = pl > s->peak_l ? pl : s->peak_l * 0.97f;
     s->peak_r = pr > s->peak_r ? pr : s->peak_r * 0.97f;
     if (s->view == V_SCOPE) {

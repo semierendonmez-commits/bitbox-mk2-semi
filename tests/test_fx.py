@@ -353,6 +353,18 @@ if "ss_dispatch" in SYM:
           on_after == 0 and seen_cmd == [3] and e.r32(ss + 8) == 0, (on_after, seen_cmd, e.r32(ss + 8)))
     del e.stubs[0x0808073C]
 
+# --- themes (theme.c): the palette's UI colours by role, alpha kept; Stock / unknown colours unchanged
+if "theme_color" in SYM:
+    def tc(c, t):
+        return e.call(SYM["theme_color"], c, t)
+    check("themes: Iznik pad grey -> cobalt, pink -> tile red, cyan -> turquoise; white kept; Stock (0) unchanged",
+          tc(0xFF56565A, 1) == 0xFF2B5F8A and tc(0xFFFF6AF3, 1) == 0xFFC8102E and tc(0xFF09D7F5, 1) == 0xFF2AC1B5
+          and tc(0xFFFFFFFF, 1) == 0xFFFFFFFF and tc(0xFF56565A, 0) == 0xFF56565A,
+          [hex(tc(c, 1)) for c in (0xFF56565A, 0xFFFF6AF3, 0xFF09D7F5)])
+    pal = struct.unpack_from("<33I", IMG, 0x080E4B58 - BASE)
+    check("the stock palette image (.data at 0x080e4b58): colour 1 pad grey, 4 pink, 5 cyan",
+          pal[1] == 0xFF56565A and pal[4] == 0xFFFF6AF3 and pal[5] == 0xFF09D7F5, [hex(x) for x in pal[:6]])
+
 # --- KEY modulation source (modsrc.c, patches/modsrc.py)
 if "mod_codes" in SYM:
     codes = struct.unpack_from("<24H", IMG, SYM["mod_codes"] - BASE)

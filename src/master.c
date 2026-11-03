@@ -93,7 +93,9 @@ static const char *const sattack_names[] = {"0.1 ms", "0.3 ms", "1 ms", "3 ms", 
 static const char *const srel_names[] = {"0.1 s", "0.3 s", "0.6 s", "1.2 s", "Auto"};
 enum { C_STOCK, C_SSL, C_TYPES };
 static const char *const saver_names[] = {"Off", "1 min", "2 min", "5 min", "10 min", "30 min"};
-static const char *const ssview_names[] = {"Scope", "Meters", "Dark"};
+static const char *const ssview_names[] = {"Scope", "Meters", "Dark", "Barcode", "Matrix", "Rain", "Pulse"};
+extern const char *const theme_names[];                     /* theme.c */
+#define P_THEME    0x20a
 static const char *const mpage_names[] = {"Comp 2", "Dist 2", "Saver", "CV In", "Quantize", "Gen", "Gen 2", "Gen 3", "Gen 4", "Gen 5", "Gen 6",
                                           "L1 Gen", "L1 Shape", "L1 Cond", "L2 Gen", "L2 Shape", "L2 Cond",
                                           "L3 Gen", "L3 Shape", "L3 Cond", "L4 Gen", "L4 Shape", "L4 Cond",
@@ -122,7 +124,8 @@ static const struct pdef pdefs[] = {
     {P_D_MIX, 8, "Mix:", 0, 1000, 1000, "pkdmix", 0},
     {P_D_LEVEL, 7, "Dist Lvl:", -24000, 12000, 0, "pkdlevel", 0},  /* MK2: Tools -> More, page Dist 2 */
     {P_SAVER, 0, "Saver:", 0, 6, 3, "semisaver", saver_names},      /* default 5 min */
-    {P_SSVIEW, 0, "View:", 0, 3, 0, "semisaverview", ssview_names},
+    {P_SSVIEW, 0, "View:", 0, 7, 0, "semisaverview", ssview_names},
+    {P_THEME, 0, "Theme:", 0, 10, 0, "semitheme", theme_names},
     {P_MPAGE, 0, "Page:", 0, MPAGES, 0, "semimorepage", mpage_names},
     {P_CVSCALE, 1, "CV Scale %:", 0, 400, 100, "semicvscale", 0},
     {P_CVOFFS, 1, "CV Offset %:", -100, 100, 0, "semicvoffset", 0},
@@ -192,7 +195,7 @@ static void swap_id(uint8_t *out, unsigned from, unsigned to)
 static const uint16_t more_pages[MPAGES][MSLOTS] = {
     {0x1a3, 0x1a5, 0x1a6},                                  /* Comp 2: Attack, Release, Gain */
     {0x1ac},                                                /* Dist 2: Dist Lvl */
-    {P_SAVER, P_SSVIEW},                                    /* Saver */
+    {P_SAVER, P_SSVIEW, P_THEME},                           /* Saver: time, view, colour theme (theme.c) */
     {P_CVSCALE, P_CVOFFS},                                  /* CV In (cvq.c): scale / offset */
     {P_QSCALE, P_QROOT},                                    /* Quantize (cvq.c): the CV inputs' pitch */
     {0x1d1, 0x1d2, 0x1d3},                                  /* Gen (gen.c): Run, Fill, Epoch */
