@@ -4,6 +4,22 @@
 
 Builds for the **bitbox MK2** on top of the stock firmware **2.3.4**, named `2.3.4-s<build>`.
 
+### 2.3.4-sJ (2026-11-03)
+
+- **Double tap a dial → its default value.** Two taps on the same dial within 350 ms set the parameter's default
+  (the default of the record type the edited pad / FX cell / setting belongs to); only that value changes, its
+  modulation does not. A drag between the taps or slower taps do nothing. Own code (the idea is also in vwal's
+  patcher, whose code is not published under a licence and was not used).
+- **Vertical waveform zoom**: on the sample waveform, spread two fingers vertically to make the waveform taller (up
+  to x32, clipped at the edges), pinch to bring it back. Display only; the horizontal pinch zoom works as before.
+- **CV In scale / offset** (Tools → More → Page "CV In"): every CV input's modulation value becomes
+  value x Scale + Offset (Scale 0..400 %, Offset −100..+100 % of the range). Example: a 0–5 V source over the full
+  bipolar range = 200 % / −100 %. The pitch (V/oct) of pads played from CV is not scaled.
+- **Quantize** (Tools → More → Page "Quantize"): the pitch of pads played from a CV input snaps to a scale: Major,
+  Minor, Dorian, Phrygian, Lydian, Mixolydian, Harmonic Minor, Pentatonic Major / Minor, Blues, Whole tone; Root C..B
+  (nearest note, ties down).
+- Simulator: the touch model has a second finger (`touch2` / `release2`).
+
 ### 2.3.4-sI (2026-11-03)
 
 - **Modulation sources KEY and ENV** at the end of the pads' MOD Source list. **KEY**: keyboard tracking (the MIDI note
