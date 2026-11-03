@@ -15,7 +15,16 @@ HOOKS = [
     (0x080B916E, BUF_MIX, "fx3_mix_b"),          # clip pads
     (0x08072130, 0x0805D8CC, "fx3_label"),       # FX grid widgets' labels (boot): note FX2's widget, FX3 init
     (0x08080AC8, 0x0807D0C8, "fx3_set_cell"),    # dispatcher, set cell: second touch on FX2 <-> FX3
+    (0x080B2B22, 0x080AF648, "sendmod_route_a"), # Sample pads' route add (message 0x3a): send targets (sendmod.c)
+    (0x080B8BF4, 0x080B7500, "sendmod_route_b"), # Clip pads'
 ]
+
+# the modulatable parameters (28 halfwords, 0x08091e78 and the MOD page lists): the last five repeat earlier entries
+# (0x15 0x16 0x1b 0x1a 0x1d); the first three of them -> FX1 / FX2 / FX3 Send
+MODLIST = 0x080C97CC
+SENDS = [(MODLIST + 2 * 23, "1500", "bb00"), (MODLIST + 2 * 24, "1600", "bc00"), (MODLIST + 2 * 25, "1b00", "c801")]
+
+EXCLUSIVE = {0x080AF648, 0x080B7500}             # one caller each: both hooked
 
 # FX cell record row 3 (app +0x2248, cell 0x330): its eight stock inits make it an empty type-0 record;
 # `movs r3, #0` before each (the type byte for 0x08089e7c) -> `movs r3, #0x44` (reverb)
@@ -30,4 +39,5 @@ PATCHES = (
     [(at, bl(at, stock), bl(at, sym[name])) for at, stock, name in HOOKS]
     + [(at, bytes.fromhex(old), bl(at, sym[name])) for at, old, name in THUNKS]
     + [(at, bytes.fromhex("0023"), bytes.fromhex("4423")) for at in ROW3_TYPE]
+    + [(at, bytes.fromhex(old), bytes.fromhex(new)) for at, old, new in SENDS]
 )

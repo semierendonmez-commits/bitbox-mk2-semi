@@ -18,12 +18,14 @@ Builds (portkit's micro history up to pkZD: portkit-micro CHANGELOG.md):
   J = double tap -> default, vertical waveform zoom, CV In scale / offset, CV pitch quantizer
   K = GEN generative sequencer with step conditions
   L = patch RAM moved to the top of DTCM and zeroed at boot (sA..sK did not boot on a unit)
+  M = FX1 / FX2 / FX3 Send modulatable; GEN: Pad Sel + numbering from the bottom left, velocity, Breakcut rearranges
+      the sample / slices (Cut), Call+Resp melodies (Scale, Range); Tape / BBD delay character
 """
 import os
 
 from thumb import ROOT, STOCK_END, bl, symbols
 
-BUILD = os.environ.get("SEMI_TAG", "L").encode()   # SEMI_TAG: test builds (sT1 ..)
+BUILD = os.environ.get("SEMI_TAG", "M").encode()   # SEMI_TAG: test builds (sT1 ..)
 
 
 def slot(text, size=16):

@@ -94,10 +94,10 @@ static const char *const srel_names[] = {"0.1 s", "0.3 s", "0.6 s", "1.2 s", "Au
 enum { C_STOCK, C_SSL, C_TYPES };
 static const char *const saver_names[] = {"Off", "1 min", "2 min", "5 min", "10 min", "30 min"};
 static const char *const ssview_names[] = {"Scope", "Meters", "Dark"};
-static const char *const mpage_names[] = {"Comp 2", "Dist 2", "Saver", "CV In", "Quantize", "Gen", "Gen 2",
+static const char *const mpage_names[] = {"Comp 2", "Dist 2", "Saver", "CV In", "Quantize", "Gen", "Gen 2", "Gen 3",
                                           "L1 Gen", "L1 Shape", "L1 Cond", "L2 Gen", "L2 Shape", "L2 Cond",
                                           "L3 Gen", "L3 Shape", "L3 Cond", "L4 Gen", "L4 Shape", "L4 Cond"};
-#define MPAGES 19
+#define MPAGES 20
 static const char *const qscale_names[] = {"Off", "Major", "Minor", "Dorian", "Phrygian", "Lydian", "Mixolyd",
                                            "Harm Min", "Pent Maj", "Pent Min", "Blues", "Whole"};
 static const char *const qroot_names[] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
@@ -196,6 +196,7 @@ static const uint16_t more_pages[MPAGES][MSLOTS] = {
     {P_QSCALE, P_QROOT},                                    /* Quantize (cvq.c): the CV inputs' pitch */
     {0x1d1, 0x1d2, 0x1d3},                                  /* Gen (gen.c): Run, Fill, Epoch */
     {0x1d4, 0x1d5},                                         /* Gen 2: Seed, Mutate */
+    {0x1fa, 0x1fb, 0x1fc},                                  /* Gen 3: Cut, Scale, Range */
 #define GLANE(l) {0x1d6 + 9 * (l), 0x1d7 + 9 * (l), 0x1d8 + 9 * (l)}, {0x1d9 + 9 * (l), 0x1da + 9 * (l), 0x1db + 9 * (l)}, \
                  {0x1dc + 9 * (l), 0x1dd + 9 * (l), 0x1de + 9 * (l)}
     GLANE(0), GLANE(1), GLANE(2), GLANE(3),                 /* Ln Gen: Algo, Pad, Steps; Shape: Hits, Rotate, Rate;

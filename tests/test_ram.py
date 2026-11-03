@@ -39,6 +39,8 @@ REGIONS = [                                         # start, size, owner (micro 
     (0x2001C300, 0x40, "dialdef.c double tap state + scratch record  (semi)"),
     (0x2001C340, 0x10, "vzoom.c waveform gain  (semi)"),
     (0x2001C380, 0x100, "gen.c GEN sequencer state (4 lanes, hit log)  (semi)"),
+    (0x2001C480, 0xB80, "sendmod.c send modulation routes (24 pads x 3 sends x 3 slots)  (semi)"),
+    (0x2001F400, 0xBA0, "sendmod.c a pad object's copy while a send route is resolved  (semi)"),
     (0x2001C180, 0x10, "master.c SSL state  [0x2001c580]"),
     (0x2001C190, 0x10, "master.c SSL state for bus 3 (Compressor: Both)  (semi)"),
     (0x2001E840, 0x100, "slicer.c Slice Str speeds (16 pads x 4 slots)  (semi)"),

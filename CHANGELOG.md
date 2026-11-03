@@ -4,6 +4,31 @@
 
 Builds for the **bitbox MK2** on top of the stock firmware **2.3.4**, named `2.3.4-s<build>`.
 
+### 2.3.4-sM (2026-11-03)
+
+From the first hardware test of sL:
+- **FX1 / FX2 / FX3 Send can be modulated.** INFO on the send rows of the Pos list opens the MOD page (stock: the
+  sends are not in the modulatable list, nothing happened). Sources: LFO, VEL, KEY, ENV, MVOL, MPAN, PTCH, MODW on
+  Sample / Granular pads; on Clip / Slicer pads every source their engine resolves. The send follows knob + amount ×
+  source every audio block (clamped 0..100 %), through the stock send curve; removing the route brings the knob back.
+- **GEN Pad numbering**: 1 = bottom left, 2 its right … 5 the row above (was: 1 = top left). New first entry **Sel**:
+  the lane plays the pad selected on the grid (an FX cell selected: the last selected pad). Defaults: lanes on pads
+  1, 2, 5, 9.
+- **GEN velocity** now reaches the pads (it was written to the wrong field of the note message).
+- **Breakcut rearranges the sound** (new **Gen 3 → Cut: On**, default): every cut plays a segment of the pad: in place,
+  a jump to another block of the cut's size, or a stutter of the last cut (Mutate % sets how often); the closing roll
+  repeats one segment. Sample pads: the segment = Steps-th of the sample (Start moved in the engine only; the pad's
+  Start comes back when Run / Cut is off; the screen and the preset keep it). Slicer pads: step k = slice k (set Steps
+  to the number of slices). Note offs at the end of each cut. Cut: Off = triggers only (as before).
+- **Call+Resp plays melodies** (**Gen 3 → Scale** (Chromatic … Whole, default Pent Min), **Range** 0–24 semitones,
+  default 12): the call is a melody walking over the scale from the pad's pitch (the same in its three cycles), the
+  response answers it upside down and ends on the pad's pitch. Range 0 = triggers only. On a Slicer pad the melody
+  picks slices.
+- **Delay types with their own character at default settings**: Tape is driven (compression), loses highs (~8 kHz)
+  and lows (90 Hz), with its own wow and flutter; BBD is dark (~4 kHz), loses lows (140 Hz), drifts, and its clock
+  follows the delay time: longer delays hold samples (one more per 200 ms, up to 8) and close the filter — grittier,
+  darker long echoes. (sL: at Drive 0 / Depth 0 they were hardly different from Digital.)
+
 ### 2.3.4-sL (2026-11-03)
 
 - **Fix: the unit did not boot (black screen after the update) with sA..sK.** A unit starts with garbage in RAM, the

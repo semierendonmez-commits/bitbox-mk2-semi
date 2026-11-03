@@ -21,7 +21,7 @@ from cave import VERSION  # noqa: E402
 
 PY = sys.executable
 SETS = ["fidelity", "pages", "sound", "reverb", "fixes", "master", "fx", "fx3", "ss", "modsrc", "ui", "gen", "cave"]
-TESTS = ["test_fidelity", "test_fx", "test_gen", "test_ram", "test_master", "test_reverb", "test_fixes"]
+TESTS = ["test_fidelity", "test_fx", "test_gen", "test_sendmod", "test_ram", "test_master", "test_reverb", "test_fixes"]
 STOCK = os.path.join(ROOT, "firmware", "BITBOXMK2.bin")
 IMAGE = "BITBOXMK2.bin"
 REPO = "https://github.com/semierendonmez-commits/bitbox-mk2-semi"
@@ -32,11 +32,11 @@ FEATURES = [
     ["24 dB filter, Drive, Filter 2", "State-variable filter instead of the pad biquad; tanh drive and a second 24 dB filter (LFO page)"],
     ["Clip tools", "Shift, Play Len, Stretch % with Str Mode Auto / Jump / Smooth (pitch kept), Loop Fade, Sync 1/32"],
     ["Slicer sync", "Sync Grid (1 bar .. 1/32) and Slice Str Cut / Stretch / Tape: slices fill their synced duration"],
-    ["Delay and reverb", "Delay types Digital / Tape / BBD, reverb types Plate / Room / Hall / Chamber, each with a second page"],
-    ["FX3 and FX Out", "Third send (touch the selected FX2 cell again); FX returns to Out1/2 or the FX1/2 jacks"],
+    ["Delay and reverb", "Delay types Digital / Tape (wow, flutter, drive) / BBD (dark, delay-time clock), reverb types Plate / Room / Hall / Chamber, each with a second page"],
+    ["FX3 and FX Out", "Third send (touch the selected FX2 cell again); FX1 / FX2 / FX3 Send modulatable (MOD page); FX returns to Out1/2 or the FX1/2 jacks"],
     ["Master section", "Compressor Stock / SSL with Mix and bus choice, master distortion Soft / Hard / Fold / Tube"],
     ["Modulation", "MOD sources KEY (keyboard tracking) and ENV (the pad's ADSR); CV In scale / offset; CV pitch quantizer"],
-    ["GEN sequencer", "4 lanes on the MK2 clock: Euclid, Breakcut, Call+Resp, Evolve, Drummap, Random; step conditions; Epoch"],
+    ["GEN sequencer", "4 lanes on the MK2 clock: Euclid, Breakcut (rearranges sample / slices), Call+Resp (melodies), Evolve, Drummap, Random; step conditions; Epoch"],
     ["UI", "Double tap a dial for its default; vertical waveform zoom (two fingers); screen saver with a live scope"],
     ["Fixes and status", "Clip / Slicer Poly Mode Mono honoured; CPU load in the status bar"],
 ]

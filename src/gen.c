@@ -5,12 +5,15 @@
  * screen; 1010music's comparison chart lists none). GEN plays the pads from four generator lanes, locked to the
  * MK2's clock: the engine's song position (engine +0x30, 960 ticks per beat, follows the internal tempo and MIDI
  * clock; tempo at engine +0x18). A hit is the same note message the grid sends when a pad is touched (0x43 note on,
- * 0x42 note off, engine queue 0x080963cc), so the pad plays exactly as from a touch (launch mode, choke, voices).
+ * 0x42 note off, engine queue 0x080963cc; velocity at +0x16), so the pad plays exactly as from a touch (launch mode,
+ * choke, voices).
  *
- * Settings (Tools -> More, pages "Gen", "Gen 2", "L1 Gen" / "L1 Shape" / "L1 Cond" .. "L4 ..."):
+ * Settings (Tools -> More, pages "Gen", "Gen 2", "Gen 3", "L1 Gen" / "L1 Shape" / "L1 Cond" .. "L4 ..."):
  *   Gen:     Run (Off / On), Fill (Off / On: the Fill conditions), Epoch (Off, 4 / 8 / 16 / 32 bars)
- *   Gen 2:   Seed (0..999), Mutate % (Evolve's change per cycle, Breakcut's variation)
- *   Ln Gen:  Algo (Off, Euclid, Breakcut, Call+Resp, Evolve, Drummap, Random), Pad (1..16, top left = 1), Steps (1..32)
+ *   Gen 2:   Seed (0..999), Mutate % (Evolve's change per cycle, Breakcut's variation and jumps)
+ *   Gen 3:   Cut (Breakcut rearranges the sound: Off / On), Scale and Range (0..24 semitones) of Call+Resp's melody
+ *   Ln Gen:  Algo (Off, Euclid, Breakcut, Call+Resp, Evolve, Drummap, Random), Pad (Sel = the pad selected on the
+ *            grid, 1..16: 1 = bottom left, 5 = the row above), Steps (1..32)
  *   Ln Shape: Hits (density 0..32), Rotate (0..31; Drummap: the map's X), Rate (1/32, 1/16, 1/8, 1/4, 1/16T, 1/8T)
  *   Ln Cond: Cond (Always, 1:2, 2:2, 1:3, 2:3, 3:3, 1:4, 2:4, 3:4, 4:4, Fill, !Fill, First, !First), Prob %, Vel
  *
@@ -18,9 +21,15 @@
  *   Euclid     Hits spread as evenly as possible over Steps, rotated.
  *   Breakcut   BBCut-style: each cycle the steps are cut into segments of 1..4 steps (Hits: more hits = shorter
  *              cuts); every cut starts with a hit, the first of a beat accented; sometimes the last cut becomes a roll
- *              (every step, rising velocity). A new cut each cycle.
+ *              (every step, rising velocity). A new cut each cycle. With Cut On every cut plays a segment of the
+ *              sound: in place, a jump to a block of the cut's size, or the last cut again (a stutter); the roll
+ *              repeats one segment. Sample pads: segment k of Steps = Start at k / Steps of the sample (the engine's
+ *              Start, in frames, as a type 0x39 message; the record keeps the knob, the old Start comes back when
+ *              Cut / Run is off). Slicer pads: note 36 + k plays slice k (tested in Renode; note 0 = the selected one).
  *   Call+Resp  3 + 1: three cycles of the call (Euclid of Hits), the fourth the response (the call moved by a
- *              quarter, with a few hits more from Seed).
+ *              quarter, with a few hits more from Seed). With Range > 0 the call is a melody (a walk over Scale from
+ *              the pad's pitch, note 48 + semitones) and the response answers it upside down, ending on the pad's
+ *              pitch; on a Slicer pad the semitones pick slices.
  *   Evolve     starts as Euclid and mutates each cycle (Mutate %: steps flipped), pulled back toward Hits.
  *   Drummap    a drum map per lane (lane 1 kick, 2 snare, 3 closed hat, 4 percussion; own maps, two variations
  *              morphed by Rotate): the steps whose level is over the Hits density play, louder steps louder.
@@ -64,6 +73,9 @@ int fast_get(const void *store, unsigned param);
 #define P_SEED   0x1d4
 #define P_MUTATE 0x1d5
 #define P_LANE0  0x1d6                                /* 9 per lane */
+#define P_CUT    0x1fa                                /* Gen 3: Breakcut rearranges the sample (Start) */
+#define P_SCALE  0x1fb                                /* Gen 3: Call+Resp melody scale */
+#define P_RANGE  0x1fc                                /* Gen 3: Call+Resp melody range, semitones (0 = no pitch) */
 enum { L_ALGO, L_PAD, L_STEPS, L_HITS, L_ROT, L_RATE, L_COND, L_PROB, L_VEL, NLP };
 #define LP(l, k) (P_LANE0 + (l) * NLP + (k))
 
@@ -80,8 +92,13 @@ static const char *const cond_names[] = {"Always", "1:2", "2:2", "1:3", "2:3", "
 static const uint8_t cond_a[] = {0, 1, 2, 1, 2, 3, 1, 2, 3, 4};
 static const uint8_t cond_b[] = {0, 2, 2, 3, 3, 3, 4, 4, 4, 4};
 enum { C_ALWAYS, C_FILL = 10, C_NFILL, C_FIRST, C_NFIRST, NCOND };
-static const char *const pad_names[] = {"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14",
-                                        "15", "16"};
+static const char *const pad_names[] = {"Sel", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12",
+                                        "13", "14", "15", "16"};
+static const char *const scale_names[] = {"Chromatic", "Major", "Minor", "Dorian", "Phrygian", "Lydian", "Mixolyd",
+                                          "Harm Min", "Pent Maj", "Pent Min", "Blues", "Whole"};
+static const uint16_t scale_mask[] = {0xfff, 0xab5, 0x5ad, 0x6ad, 0x5ab, 0xad5, 0x6b5, 0x9ad, 0x295, 0x4a9, 0x4e9, 0x555};
+#define NSCALE 12
+static const char *const cut_names[] = {"Off", "On"};
 
 struct gpdef { uint16_t id; uint8_t type; const char *label; int min, max, def; const char *xml; const char *const *names; };
 static const struct gpdef gglobal[] = {
@@ -90,11 +107,14 @@ static const struct gpdef gglobal[] = {
     {P_EPOCH, 0, "Epoch:", 0, 5, 0, "semigenepoch", epoch_names},
     {P_SEED, 1, "Seed:", 0, 999, 1, "semigenseed", 0},
     {P_MUTATE, 1, "Mutate %:", 0, 100, 25, "semigenmutate", 0},
+    {P_CUT, 0, "Cut:", 0, 2, 1, "semigencut", cut_names},
+    {P_SCALE, 0, "Scale:", 0, NSCALE, 9, "semigenscale", scale_names},
+    {P_RANGE, 1, "Range:", 0, 24, 12, "semigenrange", 0},
 };
 #define NGLOBAL (int)(sizeof gglobal / sizeof gglobal[0])
 static const struct gpdef glane[NLP] = {
     {0, 0, "Algo:", 0, NALGO, A_OFF, "algo", algo_names},
-    {0, 0, "Pad:", 0, 16, 0, "pad", pad_names},
+    {0, 0, "Pad:", 0, 17, 1, "pad", pad_names},
     {0, 1, "Steps:", 1, 32, 16, "steps", 0},
     {0, 1, "Hits:", 0, 32, 4, "hits", 0},
     {0, 1, "Rotate:", 0, 31, 0, "rot", 0},
@@ -103,7 +123,7 @@ static const struct gpdef glane[NLP] = {
     {0, 1, "Prob %:", 0, 100, 100, "prob", 0},
     {0, 1, "Vel:", 1, 127, 100, "vel", 0},
 };
-static const int8_t lane_pad[NL] = {12, 13, 8, 4};    /* defaults: bottom row 1st / 2nd pad, row above ... */
+static const int8_t lane_pad[NL] = {1, 2, 5, 9};     /* defaults: pad 1 = bottom left, 2 its right, 5 / 9 above */
 static const int8_t lane_hits[NL] = {4, 2, 8, 3};
 static const int8_t lane_rot[NL] = {0, 4, 0, 2};
 static const char *const lane_xml[NL][NLP] = {
@@ -163,7 +183,10 @@ struct lane {
     uint32_t evo;             /* Evolve's pattern */
     int32_t off_tick;         /* pending note off at this song position, 0 = none */
     uint32_t off_cell;
-    uint8_t rate, playing, evo_ok, pad;
+    uint8_t rate, playing, evo_ok, off_note;
+    uint32_t sel_cell;        /* Pad Sel: the last pad cell selected (+0x80000000 = valid) */
+    uint32_t cut_cell;        /* Cut: the pad whose Start we moved (+0x80000000 = moved) */
+    int32_t cut_orig;         /* its Start (frames) before */
 };
 struct gen {
     uint32_t magic;
@@ -188,6 +211,26 @@ static uint32_t hash3(uint32_t a, uint32_t b, uint32_t c)
     h *= 0x297a2d39u;
     h ^= h >> 15;
     return h;
+}
+
+/* Call+Resp melody: degree d of the scale (0 = the pad's pitch) -> semitones */
+static int degree_semis(int d, int scale)
+{
+    unsigned m = scale_mask[scale >= 0 && scale < NSCALE ? scale : 0];
+    int notes[12], n = 0;
+    for (int k = 0; k < 12; k++)
+        if (m >> k & 1)
+            notes[n++] = k;
+    int oct = d >= 0 ? d / n : -((-d + n - 1) / n);
+    return oct * 12 + notes[d - oct * n];
+}
+
+static int degrees_in(int range, int scale)            /* scale degrees from 0 within `range` semitones */
+{
+    int d = 0;
+    while (d < 48 && degree_semis(d + 1, scale) <= range)
+        d++;
+    return d;
 }
 
 /* --- patterns: bit i = step i hits; vel[i] (0 = the lane's Vel) --------------------------------------------------- */
@@ -236,7 +279,9 @@ static const uint8_t dmap[4][2][32] = {
     },
 };
 
-struct pat { uint32_t m; uint8_t vel[32]; };
+/* m: bit i = step i hits; vel[i] (0 = the lane's Vel); semi[i]: semitones from the pad's pitch (Call+Resp);
+   seg[i]: Breakcut's source segment for the hit at step i (-1 = none) */
+struct pat { uint32_t m; uint8_t vel[32]; int8_t semi[32]; int8_t seg[32]; };
 
 /* energy x100 (Epoch) for the song position */
 static int energy(int32_t ticks, int *fill_bar)
@@ -263,8 +308,11 @@ static int scaled_hits(int hits, int en)
 static void make_pattern(int l, int algo, int n, int hits, int rot, int32_t cycle, int en, int seed, struct pat *p)
 {
     uint32_t m = 0;
-    for (int i = 0; i < 32; i++)
+    for (int i = 0; i < 32; i++) {
         p->vel[i] = 0;
+        p->semi[i] = 0;
+        p->seg[i] = -1;
+    }
     int h = scaled_hits(hits, en);
     switch (algo) {
     case A_EUCLID:
@@ -273,7 +321,9 @@ static void make_pattern(int l, int algo, int n, int hits, int rot, int32_t cycl
     case A_BREAK: {                                    /* cuts of 1..4 steps; more hits = shorter cuts */
         uint32_t r = hash3((uint32_t)seed, (uint32_t)l + 11u, (uint32_t)cycle);
         int maxcut = hits >= 12 ? 2 : hits >= 6 ? 3 : 4;
-        int i = 0;
+        int mut = clampi(setting(P_MUTATE), 0, 100);
+        int stut = mut / 3, jump = stut + mut * 3 / 2;  /* Mutate 25 %: 8 % stutters, 37 % jumps, the rest in place */
+        int i = 0, prev = -1;
         while (i < n) {
             r = r * 1664525u + 1013904223u;
             int c = 1 + (int)((r >> 24) % (unsigned)maxcut);
@@ -281,36 +331,78 @@ static void make_pattern(int l, int algo, int n, int hits, int rot, int32_t cycl
                 c = 2;                                 /* single steps are rare */
             m |= 1u << i;
             p->vel[i] = (i % 4 == 0) ? 127 : 0;
+            r = r * 1664525u + 1013904223u;
+            int x = (int)((r >> 24) % 100u), src = i;  /* the cut plays the sample from this segment */
+            if (i == 0)
+                src = 0;                               /* each cycle starts at the top */
+            else if (prev >= 0 && x < stut)
+                src = prev;                            /* a stutter: the last cut again */
+            else if (x < jump)
+                src = (int)((r >> 8) % (unsigned)((n + c - 1) / c)) * c;   /* a jump to a block of the cut's size */
+            p->seg[i] = (int8_t)(src < n ? src : 0);
+            prev = p->seg[i];
             i += c;
         }
         r = r * 1664525u + 1013904223u;
         int roll_p = en >= 100 ? 45 : en >= 75 ? 30 : 15;
-        if ((int)((r >> 24) % 100u) < roll_p && n >= 4) {   /* last cut -> a roll */
+        if ((int)((r >> 24) % 100u) < roll_p && n >= 4) {   /* last cut -> a roll: one segment repeated */
             int len = n >= 8 ? 4 : 2;
+            int src = (r >> 8) & 1 ? n - len : (int)((r >> 12) % (unsigned)(n / len)) * len;
             for (int j = 0; j < len; j++) {
                 m |= 1u << (n - len + j);
                 p->vel[n - len + j] = (uint8_t)(60 + j * 60 / len);
+                p->seg[n - len + j] = (int8_t)src;
             }
         }
         break;
     }
     case A_CALL: {
         uint32_t call = euclid(n, h, rot);
+        int range = clampi(setting(P_RANGE), 0, 24), scale = setting(P_SCALE);
+        int top = range ? degrees_in(range, scale) : 0;
+        /* the call's melody: a walk over the scale (0 .. top degrees) from Seed, the same for the 3 calls; the
+           response answers it upside down and comes home to the pad's pitch on its last hit */
+        int8_t deg[32];
+        uint32_t r = hash3((uint32_t)seed, (uint32_t)l + 29u, (uint32_t)(cycle >> 2));
+        int d = 0;
+        for (int i = 0; i < 32; i++) {
+            r = r * 1664525u + 1013904223u;
+            int st = (int)((r >> 24) % 5u) - 2;       /* -2 .. +2 degrees */
+            if (i == 0)
+                st = (int)((r >> 20) % (unsigned)(top / 2 + 1));
+            d = clampi(d + st, 0, top);
+            deg[i] = (int8_t)d;
+        }
         if ((cycle & 3) != 3) {
             m = call;
+            if (top)
+                for (int i = 0; i < n; i++)
+                    if (call >> i & 1)
+                        p->semi[i] = (int8_t)degree_semis(deg[i], scale);
         } else {
             int sh = n / 4 ? n / 4 : 1;
             uint32_t resp = 0;
             for (int i = 0; i < n; i++)
                 if (call >> i & 1)
                     resp |= 1u << ((i + sh) % n);
-            uint32_t r = hash3((uint32_t)seed, (uint32_t)l + 23u, (uint32_t)(cycle >> 2));
+            r = hash3((uint32_t)seed, (uint32_t)l + 23u, (uint32_t)(cycle >> 2));
             int extra = h / 2 + 1;
             for (int k = 0; k < extra; k++) {
                 r = r * 1664525u + 1013904223u;
                 resp |= 1u << ((r >> 24) % (unsigned)n);
             }
             m = resp;
+            if (top) {
+                int last = -1;
+                for (int i = 0; i < n; i++)
+                    if (resp >> i & 1) {
+                        int src = (i - sh + n) % n;    /* the call's hit it answers */
+                        p->semi[i] = (int8_t)degree_semis(top - deg[src], scale);
+                        last = i;
+                    }
+                if (last >= 0)
+                    p->semi[last] = 0;
+            }
         }
         break;
     }
@@ -378,10 +470,27 @@ static void make_pattern(int l, int algo, int n, int hits, int rot, int32_t cycl
 }
 
 /* --- notes ---------------------------------------------------------------------------------------------------------- */
-static uint32_t pad_cell(int pad)                    /* 0 = top left .. 15 = bottom right; rows count from the bottom */
+/* Pad 1..16: 1 = bottom left, 4 = bottom right, 5 = the row above ... (engine cell: row << 8 | col, row 0 = bottom);
+   0 (Sel): the pad selected on the grid (app +0x28: kind << 8 | row << 4 | col), or the last one selected */
+#define VALID 0x80000000u
+static int lane_cell(volatile struct lane *ln, int pad, uint32_t *cell)
 {
-    int row = 3 - pad / 4, col = pad % 4;
-    return ((uint32_t)row << 8) | (uint32_t)col;
+    if (pad >= 1 && pad <= 16) {
+        *cell = ((uint32_t)((pad - 1) / 4) << 8) | (uint32_t)((pad - 1) % 4);
+        return 1;
+    }
+    unsigned c = *(volatile uint16_t *)(APP + 0x28);
+    if (((c >> 8) & 0x1f) == 0 && ((c >> 4) & 0xf) < 4 && (c & 0xf) < 4)
+        ln->sel_cell = VALID | (((c >> 4) & 0xf) << 8) | (c & 0xf);
+    if (!(ln->sel_cell & VALID))
+        return 0;
+    *cell = ln->sel_cell & 0xffff;
+    return 1;
+}
+
+static uint8_t *pad_record(uint32_t cell)
+{
+    return APP + 0x1840u + ((cell >> 8) & 3) * 0xf0u + (cell & 3) * 0x30u;
 }
 
 static int queue_ok(uint8_t *eng)
@@ -390,7 +499,9 @@ static int queue_ok(uint8_t *eng)
     return w - r < 24;
 }
 
-static void note(uint8_t *eng, int on, uint32_t cell, int vel)
+/* note message as 0x08094e28 / 0x08094e74: +8 cell, +0xc note (0 = the pad's own pitch as the grid sends it,
+   48 + n = n semitones from it), +0x14 u16 1, +0x16 u16 velocity */
+static void note(uint8_t *eng, int on, uint32_t cell, int nt, int vel)
 {
     int32_t now = *(volatile int32_t *)(eng + E_TICKS);
     uint32_t msg[6] = {0};
@@ -398,13 +509,60 @@ static void note(uint8_t *eng, int on, uint32_t cell, int vel)
         return;
     msg[0] = on ? 0x43 : 0x42;
     msg[2] = cell;
-    msg[3] = 0;                                        /* note 0: as the grid (the pad's own pitch) */
-    msg[4] = (uint32_t)vel;
-    msg[5] = 1;                                        /* +0x14 = 1 as 0x08094e28 */
+    msg[3] = (uint32_t)nt;
+    msg[4] = 0;
+    msg[5] = 1u | (uint32_t)vel << 16;
     fw_post_note(eng, msg);
     if (on)
         GS->log[GS->sent++ & 15] = now;
 }
+
+/* a pad parameter to the engine only (type 0x39 as the knob handler sends it, 0x08094de4): the pad's record (what
+   the screen shows and the preset saves) keeps its value */
+static void pad_param(uint8_t *eng, uint32_t cell, unsigned param, int value)
+{
+    uint32_t msg[6] = {0};
+    if (!queue_ok(eng))
+        return;
+    msg[0] = 0x39;
+    msg[2] = cell;
+    msg[3] = param;
+    msg[4] = (uint32_t)value;
+    fw_post_note(eng, msg);
+}
+
+#define P_START   0x71                                /* the pads' Start, 0..1000 of the sample */
+#define P_PADMODE 0x6d                                /* Pad Mode: 0 Sample, 1 Clip, 2 Slicer, 3 Granular */
+#define SLICE0    36                                  /* a Slicer pad plays slice k for note 36 + k (0: the selected one) */
+/* the engine's Sample pad object for a cell (engine +0xfaf8: list head +8, next +0x10; cell +0x18; the Sample /
+   Granular class, vtable 0x080df054); its Start (frames) at +0xf8, the sample's frames at +0x100 */
+#define PADS_LIST  0xfaf8
+#define VT_SAMPLE  0x080df054u
+#define PAD_START  0xf8
+#define PAD_FRAMES 0x100
+static uint8_t *sample_pad(uint8_t *eng, uint32_t cell)
+{
+    uint8_t *p = *(uint8_t *const *)(eng + PADS_LIST + 8);
+    for (int guard = 0; p && guard < 128; guard++, p = *(uint8_t *const *)(p + 0x10))
+        if (*(const uint32_t *)p == VT_SAMPLE && *(const uint32_t *)(p + 0x18) == cell)
+            return p;
+    return 0;
+}
+
+static void cut_restore(uint8_t *eng, volatile struct lane *ln)
+{
+    if (!(ln->cut_cell & VALID))
+        return;
+    uint32_t cell = ln->cut_cell & 0xffff;
+    ln->cut_cell = 0;
+    for (int l = 0; l < NL; l++)                        /* another lane still cutting the same pad: it restores */
+        if (GS->lane[l].cut_cell == (VALID | cell)) {
+            GS->lane[l].cut_orig = ln->cut_orig;
+            return;
+        }
+    pad_param(eng, cell, P_START, ln->cut_orig);
+}
+
 
 /* --- per audio block (master_dist) --------------------------------------------------------------------------------- */
 void gen_tick(void)
@@ -427,9 +585,11 @@ void gen_tick(void)
     for (int l = 0; l < NL; l++) {                     /* pending note offs */
         volatile struct lane *ln = &g->lane[l];
         if (ln->off_tick && (ticks - ln->off_tick >= 0 || !run || jumped)) {
-            note(eng, 0, ln->off_cell, 0);
+            note(eng, 0, ln->off_cell, ln->off_note, 0);
             ln->off_tick = 0;
         }
+        if (ln->cut_cell && (!run || setting(P_CUT) != 1 || setting(LP(l, L_ALGO)) != A_BREAK))
+            cut_restore(eng, ln);                       /* Cut over: the pad's own Start back */
     }
     if (!run) {
         g->running = 0;
@@ -485,12 +645,49 @@ void gen_tick(void)
             if (!ok)
                 continue;
             int vel = p.vel[pos] ? p.vel[pos] * setting(LP(l, L_VEL)) / 127 : setting(LP(l, L_VEL));
-            uint32_t cell = pad_cell(clampi(setting(LP(l, L_PAD)), 0, 15));
+            uint32_t cell;
+            if (!lane_cell(ln, clampi(setting(LP(l, L_PAD)), 0, 16), &cell))
+                continue;
             if (ln->off_tick)
-                note(eng, 0, ln->off_cell, 0);
-            note(eng, 1, cell, clampi(vel, 1, 127));
+                note(eng, 0, ln->off_cell, ln->off_note, 0);
+            int mode = fast_get(pad_record(cell), P_PADMODE);
+            int slicer = mode == 2;
+            int nt = p.semi[pos] ? 48 + p.semi[pos] : 0;
+            if (slicer && algo == A_CALL && nt)
+                nt = SLICE0 + p.semi[pos];              /* a Slicer: the melody picks slices */
+            if (algo == A_BREAK && p.seg[pos] >= 0 && setting(P_CUT) == 1 && (mode == 0 || slicer)) {   /* not Clip / Granular */
+                if (slicer) {
+                    nt = SLICE0 + p.seg[pos];           /* the cut's slice (step k = slice k) */
+                } else {
+                    uint8_t *sp = sample_pad(eng, cell);
+                    int frames = sp ? *(volatile int32_t *)(sp + PAD_FRAMES) : 0;
+                    if (frames > 0) {
+                        if (ln->cut_cell && ln->cut_cell != (VALID | cell))
+                            cut_restore(eng, ln);
+                        if (!ln->cut_cell) {
+                            int other = 0;              /* the pad's own Start (or what another lane saved) */
+                            for (int k = 0; k < NL; k++)
+                                if (k != l && g->lane[k].cut_cell == (VALID | cell)) {
+                                    ln->cut_orig = g->lane[k].cut_orig;
+                                    other = 1;
+                                }
+                            if (!other)
+                                ln->cut_orig = *(volatile int32_t *)(sp + PAD_START);
+                        }
+                        /* the cut's segment: Start in frames (the engine's unit; the screen's Start stays) */
+                        pad_param(eng, cell, P_START, frames / n * p.seg[pos] + frames % n * p.seg[pos] / n);
+                        ln->cut_cell = VALID | cell;
+                    }
+                }
+            }
+            note(eng, 1, cell, nt, clampi(vel, 1, 127));
+            ln->off_note = (uint8_t)nt;
             ln->off_cell = cell;
-            ln->off_tick = s * st + st / 2;
+            int len = 1;                                /* note off half a step on; a Breakcut cut: at its end */
+            if (algo == A_BREAK)
+                while (pos + len < n && !(p.m >> (pos + len) & 1))
+                    len++;
+            ln->off_tick = s * st + (algo == A_BREAK ? len * st - st / 8 : st / 2);
             if (!ln->off_tick)
                 ln->off_tick = 1;
         }

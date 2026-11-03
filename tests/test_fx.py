@@ -192,6 +192,39 @@ check("delay write: Digital passes the line input untouched; Tape + Drive satura
 put(DLY, P_DTYPE, 0)
 put(DLY, 0x1B1, 0)
 
+# --- the types' own character with every new knob at 0 (Drive 0, Tone open): Tape compresses, BBD holds samples on
+#     long delays (its clock), Digital stays clean
+def write_signal(typ, length, sig):
+    put(DLY, P_DTYPE, typ)
+    e.w32(0x2001C040, 0)
+    e.w32(obj + 0x30 + 0x10, length)
+    e.call(SYM["delay_core"], obj, 0)
+    out = []
+    for blk in range(len(sig) // N):
+        e.call(0x080A457C, bus(0xA))
+        e.call(0x080A4570, bus(0xA), N)
+        il, ir = e.new(4), e.new(4)
+        e.call(0x080A467C, bus(0xA), il, ir)
+        e.wf(e.r32(il), sig[blk * N:(blk + 1) * N])
+        wrote.clear()
+        e.stub(0x080A915C, lambda uc: wrote.append(e.rf(e.r32(uc.reg_read(UC_ARM_REG_R1) + 8), N)))
+        e.call(SYM["delay_write"], obj + 0x30, bus(0xA), 1)
+        out += wrote[0]
+    return out
+import math
+sig = [0.8 * math.sin(2 * math.pi * 3000 * k / 48000) for k in range(4 * N)]
+dig = write_signal(0, 48000, sig)
+tape = write_signal(2, 4800, sig)
+bbd = write_signal(4, 48000, sig)                           # 1 s: 6 held samples
+runs = [len(list(g)) for _, g in __import__("itertools").groupby(bbd[N:])]
+check("delay types at their defaults: Digital clean; Tape coloured (peak down, < 0.7); BBD on 1 s holds samples "
+      "(runs of 6) and is darker",
+      max(abs(a - b) for a, b in zip(dig, sig)) < 1e-6 and max(abs(v) for v in tape[N:]) < 0.7
+      and sorted(set(runs))[-1] == 6 and max(abs(v) for v in bbd[N:]) < 0.5,
+      (max(abs(v) for v in tape[N:]), sorted(set(runs)), max(abs(v) for v in bbd[N:])))
+put(DLY, P_DTYPE, 0)
+e.w32(obj + 0x30 + 0x10, 0)
+
 # --- delay read: the target length moves by the modulation for the read only, then comes back
 line = obj + 0x30
 e.w32(line + 0x10, 4800)

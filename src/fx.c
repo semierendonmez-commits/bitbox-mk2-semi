@@ -15,7 +15,9 @@
  *   delay_read moves the target by a modulation offset for the read (wow / flutter / chorus: the repeats are pitched,
  *   cumulative through the feedback), then puts it back; delay_write saturates and low-passes what goes onto the
  *   "tape" (the input plus the feedback), so every repeat is darker and softer. Types: Digital (stock, plus the
- *   modulation if Depth / Flutter are up), Tape (saturation, head loss, slow drift), BBD (darker, softer clip).
+ *   modulation if Depth / Flutter are up), Tape (driven saturation, head loss ~8 kHz, low cut 90 Hz, its own wow and
+ *   flutter), BBD (dark ~4 kHz, low cut 140 Hz, soft clip, a slow drift, and the clock: longer delays hold samples
+ *   (every 200 ms one more, up to 8) and close the filter under the clock's Nyquist - grittier, darker long echoes).
  * - Pages: the FX cell page (page builder 0x08078ec8, code layer 3) shows the cell record's first 8 entries, 2 x 2 x 2.
  *   The Type list carries a second page: "Tape >" = Tape, page 2. fx_page (from clip_page) removes the other page's
  *   entries; the page is rebuilt live when a list value changes. Reverb: Type list Plate, Room, Room >, Hall, Hall >,
@@ -200,6 +202,9 @@ struct dmod {
     float off[3];                       /* this block's read offsets per line (samples) */
     float lp[3], lp2[3];                /* loop filter states per line */
     int ready;
+    float hp[3];                        /* loop high-pass states (Tape / BBD lose the lows) */
+    float hold[3];                      /* BBD: the held sample (its clock falls with longer delays) */
+    uint32_t hold_n[3];
 };
 #define DM ((struct dmod *)0x2001c040u)  /* [mk2] patch RAM, 0x80 (tests/test_ram.py) */
 #define DMAGIC 0x444d4f44u               /* "DMOD" */
@@ -232,7 +237,11 @@ int delay_core(uint8_t *obj, void *arg)
     m->ph_drift += (uint32_t)(0.23f * block / FS * 4294967296.0f);
     float wow_l = depth * depth * 480.0f;                        /* up to 10 ms, squared for a fine low end */
     float flut_d = flut * flut * 24.0f;                          /* up to 0.5 ms at 6.7 Hz */
-    float drift = type == T_TAPE ? 6.0f : type == T_BBD ? 3.0f : 0.0f;
+    /* the machines' own movement, also with Depth / Flutter at 0: Tape a slow wow (0.23 Hz, 0.8 ms) and some
+       flutter (0.1 ms), BBD a light chorus-like drift (0.4 ms) */
+    float drift = type == T_TAPE ? 40.0f : type == T_BBD ? 18.0f : 0.0f;
+    if (type == T_TAPE)
+        flut_d += 5.0f;
     uint32_t sp = (uint32_t)(phase * 2147483648.0f);
     for (int s = 0; s < 2; s++) {
         uint32_t o = s ? sp : 0;
@@ -302,31 +311,60 @@ void delay_write(uint8_t *line, void *bus, int left)
         return;
     }
     float hz = fw_cutoff_hz((float)tone * 0.001f);
-    if (type == T_TAPE)
-        hz *= 0.55f;
-    else if (type == T_BBD)
-        hz *= 0.3f;
+    /* BBD: a bucket brigade of 4096 stages clocked for the delay time - longer delays, lower clock: the held
+       samples (decimation, its grit) and the anti-alias filter under the clock's Nyquist */
+    uint32_t hold = 1;
+    if (type == T_BBD) {
+        uint32_t len = *(const uint32_t *)(line + 0x10);
+        hold = 1 + len / 9600;                               /* every 200 ms of delay one more held sample */
+        if (hold > 8)
+            hold = 8;
+        float nyq = 0.42f * FS / (float)hold;
+        hz *= 0.2f;                                          /* ~4 kHz open */
+        if (hz > nyq)
+            hz = nyq;
+    } else if (type == T_TAPE) {
+        hz *= 0.42f;                                         /* head loss: ~8 kHz open */
+    }
     hz = hz < 200.0f ? 200.0f : hz > 20000.0f ? 20000.0f : hz;
     float w = 6.2831853f * hz / FS, a = w / (1.0f + w);
     int filt = hz < 19000.0f;
+    float hpa = type == T_TAPE ? 6.2831853f * 90.0f / FS : type == T_BBD ? 6.2831853f * 140.0f / FS : 0.0f;
     float g = 1.0f + (float)drive * 0.007f;                  /* 1 .. 8 */
     if (type == T_TAPE)
-        g *= 1.5f;
+        g *= 2.2f;                                           /* tape is driven: audible compression from the start */
+    else if (type == T_BBD)
+        g *= 1.6f;
     float ig = 1.0f / g;
-    float s1 = DM->lp[i], s2 = DM->lp2[i];
+    float s1 = DM->lp[i], s2 = DM->lp2[i], h = DM->hp[i], held = DM->hold[i];
+    uint32_t hn = DM->hold_n[i];
     for (int k = 0; k < n; k++) {
         float y = x[k];
         if (type != T_DIGITAL || drive)
-            y = type == T_BBD ? (g * y) / (1.0f + (g * y < 0.0f ? -g * y : g * y)) * ig * 1.4f : tanh_r(g * y) * ig;
+            y = type == T_BBD ? (g * y) / (1.0f + (g * y < 0.0f ? -g * y : g * y)) * ig * 1.4f
+                              : tanh_r(g * y) * ig * (type == T_TAPE ? 1.25f : 1.0f);
         if (filt) {
             s1 += a * (y - s1);
             s2 += a * (s1 - s2);                             /* two poles: 12 dB / oct per pass */
             y = s2;
         }
+        if (hpa > 0.0f) {
+            h += hpa * (y - h);
+            y -= h;
+        }
+        if (hold > 1) {
+            if (hn == 0)
+                held = y;
+            hn = hn + 1 >= hold ? 0 : hn + 1;
+            y = held;
+        }
         x[k] = y;
     }
     DM->lp[i] = s1;
     DM->lp2[i] = s2;
+    DM->hp[i] = h;
+    DM->hold[i] = held;
+    DM->hold_n[i] = hn;
     fw_line_write(line, bus, left);
 }
 

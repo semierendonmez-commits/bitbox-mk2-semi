@@ -173,18 +173,22 @@ void fx3_set_cell(uint8_t *app, const uint16_t *msg)
 }
 
 /* --- pad sends ------------------------------------------------------------------------------------------------------ */
+float sendmod_fx3(const uint8_t *pad, float base);   /* sendmod.c: FX3 Send modulated */
+int sendmod_fx3_on(const uint8_t *pad);
+
 static float send_gain(const uint8_t *pad)
 {
     int v = (int)pad_setting(pad, P_FX3SEND);
-    if (v <= 0)
+    float x = sendmod_fx3(pad, (float)(v < 0 ? 0 : v > 1000 ? 1000 : v) * 0.001f);
+    if (x <= 0.0f)
         return 0.0f;
-    return fw_send_curve((float)(v > 1000 ? 1000 : v) * 0.001f);
+    return fw_send_curve(x);
 }
 
-/* thunks fx3_check_a / _b: 1 if FX3 Send is on */
+/* thunks fx3_check_a / _b: 1 if FX3 Send is on (its knob, or routes to it) */
 int fx3_send_on(const uint8_t *pad)
 {
-    return ready() && pad_setting(pad, P_FX3SEND) > 0;
+    return ready() && ((int)pad_setting(pad, P_FX3SEND) > 0 || sendmod_fx3_on(pad));
 }
 
 /* thunks fx3_mix_a / _b: the pad's final mix (scratch -> its output): first scratch x FX3 gain -> FX3's send bus */

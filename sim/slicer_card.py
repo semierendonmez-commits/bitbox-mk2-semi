@@ -40,12 +40,21 @@ def main(a):
             w.setframerate(48000)
             w.writeframes(b"".join(struct.pack("<h", int(16000 * math.sin(2 * math.pi * 1000 * k / 48000)))
                                    for k in range(4 * 48000)))
-    frames = 4 * 48000 if ("--chord" in a or "--sine" in a) else FRAMES
+    if "--steps" in a:                           # slice k = a tone of 500 * (k + 1) Hz (which slice played: by frequency)
+        import math, struct, wave
+        n = 4 * 48000
+        with wave.open(os.path.join(pre, "Break.wav"), "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(48000)
+            w.writeframes(b"".join(struct.pack("<h", int(16000 * math.sin(2 * math.pi * 500 * (k * 16 // n + 1) * k / 48000)))
+                                   for k in range(n)))
+    frames = 4 * 48000 if ("--chord" in a or "--sine" in a or "--steps" in a) else FRAMES
     slices = "".join(f'<slice pos="{k * frames // 16}"/>' for k in range(16))
     xml = ['<?xml version="1.0" encoding="UTF-8"?>', "<document>", '    <session version="2">',
            '        <cell row="0" column="0" layer="0" filename=".\\Break.wav" type="sample">',
-           f'            <params cellmode="2" samtrigtype="0" polymodeslice="{poly}" playthru="{playthru}" '
-           f'slicerquantsize="{quant}" midimode="1" rootnote="48"'
+           f'            <params cellmode="{opt(a, '--mode', 2)}" samtrigtype="0" polymodeslice="{poly}" playthru="{playthru}" '
+           f'slicerquantsize="{quant}" midimode="1" rootnote="{opt(a, '--root', 48)}"'
            + (f' polymode="{spoly}"' if spoly >= 0 else "") + (" " + extra if extra else "") + '/>',
            f"            <slices>{slices}</slices>", "        </cell>", "    </session>", "</document>", ""]
     open(os.path.join(pre, "preset.xml"), "w").write("\n".join(xml))

@@ -94,8 +94,8 @@ def build(image, sd, actions, repl="micro.repl", bank2=None):
             lines.append(f"sysbus.{port} OnGPIO {pin} {'false' if act == 'keydown' else 'true'}")
             i += 2
         elif act == "hook":                                  # hook <addr> <label>: log each time it runs
-            lines.append(f'cpu AddHook {actions[i + 1]} "self.Log(LogLevel.Warning, \'HOOK {actions[i + 2]} r0=0x%x r1=0x%x r2=0x%x r3=0x%x r6=0x%x\' % '
-                         f'tuple(self.GetRegisterUnsafe(k).RawValue for k in (0, 1, 2, 3, 6)))"')
+            lines.append(f'cpu AddHook {actions[i + 1]} "self.Log(LogLevel.Warning, \'HOOK {actions[i + 2]} r0=0x%x r1=0x%x r2=0x%x r3=0x%x r4=0x%x r5=0x%x r6=0x%x r7=0x%x\' % '
+                         f'tuple(self.GetRegisterUnsafe(k).RawValue for k in (0, 1, 2, 3, 4, 5, 6, 7)))"')
             i += 3
         elif act == "ticks":                                 # audio clock ticks so far (log)
             lines.append('python "print(\'AUDIO TICKS\', self.Machine[\'sysbus.audioDma\'].Ticks)"')
@@ -202,6 +202,12 @@ def build(image, sd, actions, repl="micro.repl", bank2=None):
             lines.append(f'cpu AddHook {actions[i + 1]} "self.Log(LogLevel.Warning, \'HOOK {actions[i + 2]} cmd=0x%x\' % '
                          f'self.GetMachine().SystemBus.ReadWord(self.GetRegisterUnsafe(1).RawValue))"')
             i += 3
+        elif act == "qmsg":                                  # qmsg <w0..w5>: post a 24-byte message to the MK2 engine queue
+            ws = ", ".join(actions[i + 1:i + 7])
+            lines.append('python "b=self.Machine.SystemBus; e=b.ReadDoubleWord(0x2402debc); w=b.ReadDoubleWord(e+0xdcdc); '
+                         f'[b.WriteDoubleWord(e+0xd6d8+(w&63)*24+4*k, v) for k, v in enumerate(({ws},))]; '
+                         'b.WriteDoubleWord(e+0xdcdc, w+1)"')
+            i += 7
         elif act == "msgx":                                  # msgx <addr> <label>: log 6 words at [r1]
             lines.append(f'cpu AddHook {actions[i + 1]} "b=self.GetMachine().SystemBus; r1=self.GetRegisterUnsafe(1).RawValue; '
                          f'self.Log(LogLevel.Warning, \'HOOK {actions[i + 2]} %s\' % \' \'.join(\'%08x\' % b.ReadDoubleWord(r1 + 4 * k) for k in range(6)))"')

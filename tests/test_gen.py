@@ -64,21 +64,27 @@ def sset(pid, v):
     e.call(0x080893B2, SET, pid, v & 0xFFFFFFFF)
 
 
-check("settings store: capacity 0x80, 100 entries (59 + GEN 41), GEN defaults (Run Off, lane 1 Euclid on pad 13)",
-      cap == 0x80 and cnt == 100 and sget(0x1D1) == 0 and sget(0x1D6) == 1 and sget(0x1D7) == 12
+check("settings store: capacity 0x80, 103 entries (59 + GEN 44), GEN defaults (Run Off, lane 1 Euclid on pad 1, "
+      "Cut On, Scale Pent Min, Range 12)",
+      cap == 0x80 and cnt == 103 and sget(0x1D1) == 0 and sget(0x1D6) == 1 and sget(0x1D7) == 1
+      and sget(0x1FA) == 1 and sget(0x1FB) == 9 and sget(0x1FC) == 12
       and sget(0x1D8) == 16 and sget(0x1D9) == 4, (cap, cnt, [sget(p) for p in range(0x1D1, 0x1DF)]))
 
 # --- gen_tick on a fake engine
 eng = e.new(0x10000)
 e.w32(0x24023CB8 + 0xA204, eng)
 notes = []
+params = []
 now = [0]
 
 
 def post(uc):
     m = uc.reg_read(UC_ARM_REG_R1)
     typ = e.mu.mem_read(m, 1)[0]
-    notes.append((now[0], typ, e.r32(m + 8), e.r32(m + 0x10)))
+    if typ in (0x42, 0x43):
+        notes.append((now[0], typ, e.r32(m + 8), e.r16(m + 0x16), e.r32(m + 0xC)))
+    else:
+        params.append((now[0], typ, e.r32(m + 8), e.r32(m + 0xC), e.r32(m + 0x10)))
 
 
 e.stub(0x080963CC, post)
@@ -95,7 +101,7 @@ def run(t0, t1, dt=20):
 
 
 def ons(cell=None):
-    return [(t, c, v) for t, ty, c, v in notes if ty == 0x43 and (cell is None or c == cell)]
+    return [(t, c, v) for t, ty, c, v, nt in notes if ty == 0x43 and (cell is None or c == cell)]
 
 
 LANE = lambda l, k: 0x1D6 + 9 * l + k                       # noqa: E731
@@ -123,20 +129,20 @@ sset(LANE(0, ALGO), 1)
 sset(0x1D1, 1)
 run(0, 2 * BAR)
 o = ons()
-offs = [(t, c) for t, ty, c, v in notes if ty == 0x42]
-check("Euclid 16/4: 8 hits in 2 bars on the beats (within one block), cell 0x000 (pad 13), vel 100; note offs 120 later",
+offs = [(t, c) for t, ty, c, v, nt in notes if ty == 0x42]
+check("Euclid 16/4: 8 hits in 2 bars on the beats (within one block), cell 0x000 (pad 1), vel 100 (+0x16); offs 120 later",
       [t // 960 for t, c, v in o] == list(range(8)) and all(t % 960 < 20 for t, c, v in o)
       and all(c == 0 and v == 100 for t, c, v in o) and len(offs) >= 7 and all(t % 960 >= 120 for t, c in offs[:7]),
       (o, offs[:3]))
 
-# 2. E(3,8) with 1:2 on pad 1 (top left: row 3, col 0): cycles of 8 sixteenths, plays the 1st of every 2
+# 2. E(3,8) with 1:2 on pad 13 (top left: row 3, col 0): cycles of 8 sixteenths, plays the 1st of every 2
 reset()
-for k, v in ((ALGO, 1), (PAD, 0), (STEPS, 8), (HITS, 3), (ROT, 0), (COND, 1)):
+for k, v in ((ALGO, 1), (PAD, 13), (STEPS, 8), (HITS, 3), (ROT, 0), (COND, 1)):
     sset(LANE(1, k), v)
 sset(0x1D1, 1)
 run(0, 2 * BAR)
 s = steps_of(ons(0x300))
-check("Cond 1:2: E(3,8) at sixteenths 0 3 6 of cycles 0 and 2 only (cell 0x300 = pad 1)", s == [0, 3, 6, 16, 19, 22], s)
+check("Cond 1:2: E(3,8) at sixteenths 0 3 6 of cycles 0 and 2 only (cell 0x300 = pad 13)", s == [0, 3, 6, 16, 19, 22], s)
 sset(LANE(1, COND), 2)                                       # 2:2
 notes.clear()
 run(2 * BAR, 4 * BAR)
@@ -164,7 +170,7 @@ nf = len(ons(0x300))
 check("Fill: silent without Fill, plays with Fill On; !Fill plays without", nofill == 0 and fill == 6 and nf == 6,
       (nofill, fill, nf))
 reset()
-for k, v in ((ALGO, 1), (PAD, 0), (STEPS, 8), (HITS, 3), (ROT, 0), (COND, 12)):
+for k, v in ((ALGO, 1), (PAD, 13), (STEPS, 8), (HITS, 3), (ROT, 0), (COND, 12)):
     sset(LANE(1, k), v)
 sset(0x1D1, 1)
 run(BAR, 3 * BAR)
@@ -193,7 +199,7 @@ check("Prob 50 %: about half of 128 sixteenths each time, different steps", 44 <
 # 4. the algorithms (lane 0, 16 steps, 1/16): per cycle step lists
 def cycles(algo, hits=4, rot=0, ncyc=8, steps=16, mutate=None, lane=0):
     reset()
-    for k, v in ((ALGO, algo), (STEPS, steps), (HITS, hits), (ROT, rot), (PROB, 100), (COND, 0), (PAD, 12)):
+    for k, v in ((ALGO, algo), (STEPS, steps), (HITS, hits), (ROT, rot), (PROB, 100), (COND, 0), (PAD, 1)):
         sset(LANE(lane, k), v)
     if mutate is not None:
         sset(0x1D5, mutate)
@@ -231,9 +237,9 @@ check("Random: about Hits per cycle (8 of 16), varying", 40 <= tot <= 88 and len
 
 # 5. Epoch 4 bars: the first bar at half density, the last bar a fill
 reset()
-for k, v in ((ALGO, 1), (STEPS, 16), (HITS, 8), (PAD, 12)):
+for k, v in ((ALGO, 1), (STEPS, 16), (HITS, 8), (PAD, 1)):
     sset(LANE(0, k), v)
-for k, v in ((ALGO, 1), (STEPS, 16), (HITS, 4), (PAD, 0), (COND, 10)):
+for k, v in ((ALGO, 1), (STEPS, 16), (HITS, 4), (PAD, 13), (COND, 10)):
     sset(LANE(1, k), v)
 sset(0x1D3, 1)
 sset(0x1D1, 1)
@@ -250,8 +256,8 @@ sset(0x1D1, 1)
 run(0, 980)
 sset(0x1D1, 0)
 run(980, 3 * BAR)
-check("Run Off: the pending note off is sent, then nothing", [ty for t, ty, c, v in notes][-1] == 0x42
-      and not [1 for t, ty, c, v in notes if ty == 0x43 and t > 980], notes[-3:])
+check("Run Off: the pending note off is sent, then nothing", [ty for t, ty, c, v, nt in notes][-1] == 0x42
+      and not [1 for t, ty, c, v, nt in notes if ty == 0x43 and t > 980], notes[-3:])
 reset()
 sset(LANE(0, ALGO), 1)
 sset(0x1D1, 1)
@@ -260,6 +266,92 @@ notes.clear()
 run(0, 100)                                                 # song restarts
 o = ons()
 check("song position jump back: restarts on the next step, no burst", len(o) == 1 and o[0][0] < 40, o)
+
+
+# 7. Pad numbering and Sel: 1 = bottom left .. 16 = top right; Sel = the grid's selected pad (app +0x28)
+reset()
+sset(LANE(0, ALGO), 1)
+sset(LANE(0, PAD), 7)                                       # pad 7: row 1, column 2
+sset(0x1D1, 1)
+run(0, BAR)
+c7 = {c for t, c, v in ons()}
+reset()
+e.mu.mem_write(APP + 0x28, struct.pack("<H", 0x23))          # selected: kind 0, row 2, column 3 = pad 12
+sset(LANE(0, ALGO), 1)
+sset(LANE(0, PAD), 0)
+sset(0x1D1, 1)
+run(0, BAR)
+csel = {c for t, c, v in ons()}
+e.mu.mem_write(APP + 0x28, struct.pack("<H", 0x310))         # an FX cell selected: keeps the last pad
+notes.clear()
+run(BAR, 2 * BAR)
+ckeep = {c for t, c, v in ons()}
+check("Pad 7 = row 1 col 2 (0x102); Sel follows the selected pad (0x203), keeps it while an FX cell is selected",
+      c7 == {0x102} and csel == {0x203} and ckeep == {0x203}, (c7, csel, ckeep))
+
+# 8. Call+Resp melody: Range 12 in Pent Min: calls the same melody (notes 48 + 0..12, pent min steps), the response
+#    other notes, ending on the pad's pitch (note 0); Range 0: no pitch
+def call_notes(rng, scale=9):
+    reset()
+    for k, v in ((ALGO, 3), (STEPS, 16), (HITS, 4), (ROT, 0), (PAD, 1)):
+        sset(LANE(0, k), v)
+    sset(0x1FC, rng)
+    sset(0x1FB, scale)
+    sset(0x1D1, 1)
+    run(0, 4 * 16 * 240)
+    cyc = [[] for _ in range(4)]
+    for t, ty, c, v, nt in notes:
+        if ty == 0x43:
+            cyc[t // (16 * 240)].append(nt)
+    return cyc
+cn = call_notes(12)
+semis = {n - 48 for c in cn for n in c if n}
+check("Call+Resp Range 12, Pent Min: 3 equal pitched calls, a different response ending on the pad's pitch, "
+      "all notes in the scale within an octave",
+      cn[0] == cn[1] == cn[2] and len(set(cn[0])) >= 2 and cn[3] != cn[0] and cn[3][-1] == 0
+      and semis <= {0, 3, 5, 7, 10, 12}, cn)
+c0 = call_notes(0)
+check("Call+Resp Range 0: unpitched (note 0, the pad's own pitch)", all(n == 0 for c in c0 for n in c), c0)
+sset(0x1FC, 12)
+
+# 9. Breakcut Cut on a Sample pad: Start (param 0x71, frames) before each cut, the cycle's first cut from the top;
+#    Cut Off / Run Off: the pad's Start back
+pad = e.new(0x200)
+e.w32(pad, 0x080DF054)
+e.w32(pad + 0x18, 0x000)
+e.w32(pad + 0x100, 160000)
+e.w32(pad + 0xF8, 1234)
+e.w32(pad + 0x10, 0)
+e.w32(eng + 0xFAF8 + 8, pad)
+reset()
+params.clear()
+for k, v in ((ALGO, 2), (STEPS, 16), (HITS, 6), (PAD, 1)):
+    sset(LANE(0, k), v)
+sset(0x1D5, 60)
+sset(0x1D1, 1)
+run(0, 8 * 16 * 240)
+hits = [(t, nt) for t, ty, c, v, nt in notes if ty == 0x43]
+starts = [(t, val) for t, ty, c, prm, val in params if prm == 0x71]
+okpair = all(any(st == ht for st, _ in starts) for ht, _ in hits)
+segs = [val // 10000 for _, val in starts]
+firsts = [val for t, val in starts if t % (16 * 240) < 20]
+moved = sum(1 for (t, val) in starts if val // 10000 != (t // 240) % 16)
+check("Breakcut + Cut: a Start (frames) with every hit, multiples of 160000 / 16, each cycle from 0, "
+      "some cuts moved (Mutate 60 %)",
+      hits and okpair and all(v % 10000 == 0 for _, v in starts) and set(firsts) == {0} and moved >= 4,
+      (len(hits), len(starts), segs[:24], moved))
+params.clear()
+sset(0x1D1, 0)
+run(8 * 16 * 240, 8 * 16 * 240 + 40)
+check("Run Off: the pad's own Start (1234 frames) back", [(prm, val) for t, ty, c, prm, val in params] == [(0x71, 1234)],
+      params)
+sset(0x1D1, 1)
+sset(0x1FA, 0)
+params.clear()
+run(9 * 16 * 240, 11 * 16 * 240)
+check("Cut Off: Breakcut only triggers (no Start)", not params, params[:3])
+sset(0x1FA, 1)
+e.w32(eng + 0xFAF8 + 8, 0)
 
 print(f"\n{'FAILED: ' + str(failures) if failures else 'all passed'}")
 sys.exit(1 if failures else 0)
