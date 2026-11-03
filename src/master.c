@@ -436,11 +436,13 @@ static float run1(struct dch *c, int type, float in, float drive, float tone_a, 
 /* master_thunk.S at 0x08098190 (bus 0 = r4): bus 0 through the distortion */
 void ss_audio(void *bus0);                               /* ss.c: screen saver monitor and timer */
 void modenv_tick(void);                                  /* modsrc.c: the pads' ENV sources */
+void dd_block(void);                                     /* dialdef.c: UI clock (audio blocks) */
 
 void master_dist(void *bus0)
 {
     ss_audio(bus0);
     modenv_tick();
+    dd_block();
     struct dist *d = DS;
     int type = fw_store_get(SETTINGS, P_D_TYPE);
     if (type <= D_OFF || type >= D_TYPES) {
