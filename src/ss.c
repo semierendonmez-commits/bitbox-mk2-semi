@@ -9,7 +9,8 @@
  *   touched, nothing has to be redrawn). Register reloads at vertical blanking (SRCR = 2).
  * - Drawing runs in the audio block (ss_audio, from master_dist: bus 0 = Out1/2 after the FX returns), one scope
  *   column per block (375 columns/s: a sweep every 0.8 s), the meters every 8 blocks; a few hundred pixel writes.
- * - Wake: a touch (the app dispatcher's touch commands 3 / 4; the waking touch is swallowed), the two keys (GPIOC
+ * - Wake: a touch (the app dispatcher's touch commands: 3 / 4 on the grid, 0x14d on dial pages, knob, cell select; the
+ *   waking touch is swallowed), the two keys (GPIOC
  *   IDR, PC2 / PC3 active low, polled per block), MIDI in (the UARTs' receive ISR, HAL RxISR pointer 0x0804e9c9 at
  *   its two set-up sites, replaced by ss_rx_isr). A MIDI byte also flashes a dot in the corner.
  */
@@ -275,20 +276,28 @@ int ss_set_address(void *h, uint32_t addr, unsigned layer)
 }
 
 /* the dispatcher calls (bl 0x0808073c at its three callers): a touch wakes the saver and is swallowed */
+/* commands a touch produces: 3 / 4 (press / release on the pad grid), 0x14d (a dial page's touch), 0x6e (knob),
+   0x111 (cell select), 0x16a (step edit). Other messages (the sequencer, timers) neither wake nor reset the timer. */
+static int touch_cmd(unsigned cmd)
+{
+    return cmd == 3 || cmd == 4 || cmd == 0x14d || cmd == 0x6e || cmd == 0x111 || cmd == 0x16a;
+}
+
 int ss_dispatch(void *app, const uint16_t *msg)
 {
     volatile struct ss *s = SS;
     unsigned cmd = msg[0];
-    if (s->magic == SSMAGIC && (cmd == 3 || cmd == 4)) {
-        if (s->on && cmd == 3) {
+    if (s->magic == SSMAGIC && touch_cmd(cmd)) {
+        if (s->on) {                                    /* the waking touch does nothing else */
             wake();
-            s->swallow = 1;
+            s->swallow = cmd != 4;
             return 0;
         }
         if (s->swallow && cmd == 4) {
             s->swallow = 0;
             return 0;
         }
+        s->swallow = 0;
         s->idle = 0;
     }
     return fw_dispatch(app, msg);

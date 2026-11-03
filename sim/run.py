@@ -189,6 +189,10 @@ def build(image, sd, actions, repl="micro.repl", bank2=None):
             lines.append(f'cpu AddHook {actions[i + 1]} "self.Log(LogLevel.Warning, \'HOOK {actions[i + 2]} cmd=0x%x\' % '
                          f'self.GetMachine().SystemBus.ReadWord(self.GetRegisterUnsafe(1).RawValue))"')
             i += 3
+        elif act == "msgx":                                  # msgx <addr> <label>: log 6 words at [r1]
+            lines.append(f'cpu AddHook {actions[i + 1]} "b=self.GetMachine().SystemBus; r1=self.GetRegisterUnsafe(1).RawValue; '
+                         f'self.Log(LogLevel.Warning, \'HOOK {actions[i + 2]} %s\' % \' \'.join(\'%08x\' % b.ReadDoubleWord(r1 + 4 * k) for k in range(6)))"')
+            i += 3
         elif act == "regsx":                                 # regsx <addr> <label>: log r4-r8, [r4+0x18], sp
             lines.append(f'cpu AddHook {actions[i + 1]} "c=self; b=self.GetMachine().SystemBus; '
                          f'self.Log(LogLevel.Warning, \'HOOK {actions[i + 2]} r4=0x%x r5=0x%x r6=0x%x r7=0x%x r8=0x%x id=0x%x sp=0x%x\' % '
