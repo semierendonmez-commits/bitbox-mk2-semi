@@ -11,7 +11,7 @@
 vzoom_scale_thunk:
     vcvt.f32.s32 s16, s15
     push    {r0}
-    ldr     r0, =0x2406d340
+    ldr     r0, =0x2001c340
     ldr     ip, [r0]
     cmp     ip, fp
     bne     1f

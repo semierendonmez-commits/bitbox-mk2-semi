@@ -42,7 +42,7 @@ void slicer_register(void *table)
  * Tape = the stock read at rate c (pitch follows the tempo, like a turntable). Cut = stock. */
 typedef int (*start_fn)(uint8_t *pad, int a1, int a2, int a3, int start, int dur, int a6, int end, int len, int flag);
 #define fw_slice_start ((start_fn)FN(0x080b576c))         /* [mk2] */
-#define SPEEDS ((volatile float *)0x2406f840u)            /* [mk2] 16 pads x 4 slots */
+#define SPEEDS ((volatile float *)0x2001e840u)            /* [mk2] 16 pads x 4 slots */
 
 int slicer_start(uint8_t *pad, int a1, int a2, int a3, int start, int dur, int a6, int end, int len, int flag)
 {

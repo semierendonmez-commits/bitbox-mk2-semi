@@ -175,7 +175,7 @@ put(DLY, P_DTYPE, 0)
 # --- delay write: Digital with Drive 0 and Tone open leaves the signal alone; Tape colours it
 obj = e.new(0x224)
 e.mu.mem_write(obj + 0x220, b"\0")
-e.w32(0x2406D040, 0)                                       # fresh modulation state
+e.w32(0x2001C040, 0)                                       # fresh modulation state
 wrote = []
 e.stub(0x080A915C, lambda uc: wrote.append(e.rf(e.r32(uc.reg_read(UC_ARM_REG_R1) + 8), 4)))
 e.stub(0x080A89D4, lambda uc: uc.reg_write(UC_ARM_REG_R0, 1))
@@ -230,7 +230,7 @@ if "fx3_set_cell" in SYM:
     e.stub(0x0805D8CC, lambda uc: None)
     fx2 = e.new(8)
     e.mu.mem_write(fx2, b"FX 2\0")
-    e.w32(0x2406CE00, 0)
+    e.w32(0x2001BE00, 0)
     e.stub(0x08043BD0, lambda uc: uc.reg_write(UC_ARM_REG_R0, 0))      # no heap: FX3 stays off, the cell still works
     e.call(SYM["fx3_label"], widget, fx2)
     cells = []
@@ -272,7 +272,7 @@ if "modsrc_route_thunk" in SYM:
         msg = e.new(0x20)
         e.mu.mem_write(msg + 0xC, struct.pack("<IIHh", target, 1, code, 1000))
         e.call(0x080AF648, padr, msg)
-        return padr, [o for o in range(0, 0x1000, 4) if e.r32(padr + o) in (0x2406D200 + 6 * 16, padr + 0x13C)]
+        return padr, [o for o in range(0, 0x1000, 4) if e.r32(padr + o) in (0x2001C200 + 6 * 16, padr + 0x13C)]
     p_env, hits_env = route(0x30, 0xAA)                      # ENV -> Filter (0xaa)
     p_pt, hits_pt = route(0x19, 0xAA)                        # PTCH -> Filter (stock path, for comparison)
     check("route add: ENV -> Filter puts the ENV object into a pad-level slot, at the place PTCH's object goes",
@@ -287,7 +287,7 @@ if "ss_dispatch" in SYM:
     seen_cmd = []
     e.stub(0x0808073C, lambda uc: seen_cmd.append(struct.unpack("<H", uc.mem_read(uc.reg_read(UC_ARM_REG_R1), 2))[0]))
     e.mu.mem_map(0x50001000, 0x1000)                        # LTDC registers (wake writes them)
-    ss = 0x2406D0C0
+    ss = 0x2001C0C0
     e.w32(ss, 0x53415652)                                   # magic
     e.w32(ss + 8, 1234)                                     # idle
     m = e.new(0x20)
@@ -316,7 +316,7 @@ if "mod_codes" in SYM:
     # ENV: the pick gives code 0x30 the pad's object, keeps PTCH; the tick runs the envelope on the pad's gate
     padx = e.new(0x700)
     e.w32(padx + 0x18, (1 << 8) | 2)                        # row 1, col 2 (the test record)
-    e.w32(0x2406D200 + 6 * 16, 0)                           # its ENV slot: fresh
+    e.w32(0x2001C200 + 6 * 16, 0)                           # its ENV slot: fresh
     obj = e.call(SYM["modsrc_pick"], 0x30, padx)
     ptch = e.call(SYM["modsrc_pick"], 0x19, padx)
     other = e.call(SYM["modsrc_pick"], 0x10, padx)
@@ -337,7 +337,7 @@ if "mod_codes" in SYM:
     tick(400, 1)                                            # then decay to the sustain 0.6
     tick(400, 0)                                            # gate off: release
     check("ENV: object = ENV slot of the pad (row 1, col 2), PTCH = pad +0x13c, other codes 0; rises on a voice, falls "
-          "after release", obj == 0x2406D200 + 6 * 16 and ptch == padx + 0x13C and other == 0 and levels[0] == 0.0
+          "after release", obj == 0x2001C200 + 6 * 16 and ptch == padx + 0x13C and other == 0 and levels[0] == 0.0
           and 0.2 < levels[1] < 0.6 and abs(levels[2] - 0.6) < 0.01 and levels[3] == 0.0, (hex(obj), levels))
 
 # --- CV In: scale / offset and the pitch quantizer (cvq.c, the engine's CV event call 0x08095c22)

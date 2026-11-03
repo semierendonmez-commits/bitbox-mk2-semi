@@ -73,18 +73,18 @@ struct fx3 {
     uint32_t idle;
     uint8_t *fx2_widget;         /* the FX grid's FX2 widget (cell id at +0x38) */
 };
-#define F3 ((volatile struct fx3 *)0x2406ce00u)        /* [mk2] */
+#define F3 ((volatile struct fx3 *)0x2001be00u)        /* [mk2] */
 _Static_assert(sizeof(struct fx3) <= 0x100, "FX3 state must fit its slot (tests/test_ram.py)");
 #define F3MAGIC 0x46583321u
 
 /* two bus records of our own (20 bytes as the engine's, 128-frame planes) in patch RAM: the send (pads mix into it)
    and the return (mixed into the destination bus with the stock mix, which handles a silent destination) */
-#define F3IN    ((uint8_t *)0x2406f000u)              /* [mk2] */
-#define F3OUT   ((uint8_t *)0x2406f018u)              /* [mk2] */
-#define IN_L    ((float *)0x2406f040u)                /* [mk2] 4 planes x 0x200 */
-#define IN_R    ((float *)0x2406f240u)                /* [mk2] */
-#define OUT_L   ((float *)0x2406f440u)                /* [mk2] */
-#define OUT_R   ((float *)0x2406f640u)                /* [mk2] */
+#define F3IN    ((uint8_t *)0x2001e000u)              /* [mk2] */
+#define F3OUT   ((uint8_t *)0x2001e018u)              /* [mk2] */
+#define IN_L    ((float *)0x2001e040u)                /* [mk2] 4 planes x 0x200 */
+#define IN_R    ((float *)0x2001e240u)                /* [mk2] */
+#define OUT_L   ((float *)0x2001e440u)                /* [mk2] */
+#define OUT_R   ((float *)0x2001e640u)                /* [mk2] */
 
 static void bus_set(uint8_t *b, float *l, float *r, int frames)
 {

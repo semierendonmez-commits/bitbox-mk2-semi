@@ -12,7 +12,7 @@
     .thumb_func
     .type reverb_core_thunk, %function
 reverb_core_thunk:
-    ldr     ip, =0x2406cbf0
+    ldr     ip, =0x2001bbf0
     str     r4, [ip]
     b.w     reverb_core
     .ltorg

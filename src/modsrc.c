@@ -33,7 +33,7 @@ struct envsrc {                /* a source object: value at +4 */
     float level;
     uint8_t stage, last_voices, pad1, pad2;
 };
-#define ENVS ((volatile struct envsrc *)0x2406d200u)      /* [mk2] 16 x 0x10 */
+#define ENVS ((volatile struct envsrc *)0x2001c200u)      /* [mk2] 16 x 0x10 */
 _Static_assert(sizeof(struct envsrc) == 0x10, "16 bytes per pad");
 enum { E_IDLE, E_ATTACK, E_DECAY, E_SUSTAIN, E_RELEASE };
 

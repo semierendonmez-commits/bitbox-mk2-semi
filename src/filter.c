@@ -470,7 +470,7 @@ struct read_park {
     int32_t pos;
     float rate;
 };
-#define PARK ((volatile struct read_park *)0x2406bd00u)     /* MK2: above the stack top (tests/test_ram.py);
+#define PARK ((volatile struct read_park *)0x2001ad00u)     /* MK2: above the stack top (tests/test_ram.py);
                                                                MPU device memory, aligned */
 
 typedef void (*kernel_fn)(float rate, const float *src, int n_src, int pos, int *newpos, float *frac, float *dst,

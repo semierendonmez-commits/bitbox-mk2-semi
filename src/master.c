@@ -11,7 +11,7 @@
  *   master_comp (hooked at 0x080983a8) writes them from the settings store before every block.
  * - Distortion: on bus 0 (Out 1/2) after the FX returns and the master EQ, before the compressor (thunk at 0x08098190,
  *   the compressor flag's load, so it runs whether the compressor is on or not). 2x oversampled (31-tap half-band
- *   up / down), shapers Soft (tanh) / Hard (clip) / Fold (triangle) / Tube (asymmetric tanh, DC blocked; state 0x2406b800), Tone (one-pole
+ *   up / down), shapers Soft (tanh) / Hard (clip) / Fold (triangle) / Tube (asymmetric tanh, DC blocked; state 0x2001a800), Tone (one-pole
  *   low-pass, the stock cutoff curve), Mix (dry delayed by the filters' 15 samples), Level.
  * - Comp Type (0x19d): Stock = the stock DSP above; SSL = an SSL-style bus compressor of ours (ssl_run, end of
  *   file) with the SSL's switch values (ratio 0x19f, attack 0x17d, release 0x17f incl. Auto); threshold and Gain
@@ -255,10 +255,10 @@ struct sslst;
 static void ssl_run(void *bus, struct sslst *s, const struct cset *c);
 static void ssl_settings(struct cset *c);
 static void stock_settings(struct cset *c);
-#define SST  ((struct sslst *)0x2406d180u)              /* SSL state, Out1/2 */
-#define SSTB ((struct sslst *)0x2406d190u)              /* [mk2] SSL state, FX1/2 (Compressor: Both) */
-#define DRY_L ((float *)0x2406e000u)                     /* dry copy for Mix: 2 x 512 floats (patch RAM, free) */
-#define DRY_R ((float *)0x2406e800u)
+#define SST  ((struct sslst *)0x2001c180u)              /* SSL state, Out1/2 */
+#define SSTB ((struct sslst *)0x2001c190u)              /* [mk2] SSL state, FX1/2 (Compressor: Both) */
+#define DRY_L ((float *)0x2001d000u)                     /* dry copy for Mix: 2 x 512 floats (patch RAM, free) */
+#define DRY_R ((float *)0x2001d800u)
 
 /* Comp Type Stock: the stock DSP with our settings; SSL: ours (ssl_run) on the same bus, then the node the stock DSP
    would hand on to (object +8, vtable +0xc). Mix (both): dry / wet. */
@@ -423,8 +423,8 @@ struct dist {
     float drive, mix, level;     /* smoothed: the last block's values */
     struct dch ch[2];
 };
-#define DS ((struct dist *)0x2406b800u)
-_Static_assert(sizeof(struct dist) <= 0x300, "distortion state must end before 0x2406bb00 (tests/test_ram.py)");
+#define DS ((struct dist *)0x2001a800u)
+_Static_assert(sizeof(struct dist) <= 0x300, "distortion state must end before 0x2001ab00 (tests/test_ram.py)");
 #define DMAGIC 0x44495355u       /* "DISU" (ring layout) */
 
 static float run1(struct dch *c, int type, float in, float drive, float tone_a, int tone_on)

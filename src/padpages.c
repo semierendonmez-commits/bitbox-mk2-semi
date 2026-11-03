@@ -107,7 +107,7 @@ typedef void (*name_fn)(volatile uint8_t *app, const void *msg, char *info);
 typedef int (*snprintf_fn)(char *buf, unsigned size, const char *fmt, ...);
 #define fw_snprintf   ((snprintf_fn)FN(0x080bcd58))
 
-/* State above the stack top, next to Fidelity's PARK (0x2406c100..0x2406c10b); MPU device memory, aligned accesses. */
+/* State above the stack top, next to Fidelity's PARK (0x2001b100..0x2001b10b); MPU device memory, aligned accesses. */
 struct pstate {
     uint32_t magic;
     uint8_t page;                /* 0: pads 1-8, 1: pads 9-16; read by the thunks at +4 */
@@ -122,8 +122,8 @@ struct pstate {
     uint8_t *picker[MAX_PICKERS];/* pad pickers */
     uint16_t psel[MAX_PICKERS];  /* the pad each picker's owner last asked to mark (0xffff: none) */
 };
-#define ST     ((volatile struct pstate *)0x2406c110u)
-_Static_assert(sizeof(struct pstate) <= 0xb0, "pad pages state must end before the load meter at 0x2406c1c0");
+#define ST     ((volatile struct pstate *)0x2001b110u)
+_Static_assert(sizeof(struct pstate) <= 0xb0, "pad pages state must end before the load meter at 0x2001b1c0");
 #define PMAGIC 0x50414745u       /* "PAGE" */
 enum { SCR_A, SCR_B, SCR_D };
 

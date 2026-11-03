@@ -82,7 +82,7 @@ def post(uc):
 
 
 e.stub(0x080963CC, post)
-GS = 0x2406D380
+GS = 0x2001C380
 
 
 def run(t0, t1, dt=20):

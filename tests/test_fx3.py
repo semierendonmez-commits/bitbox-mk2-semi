@@ -19,7 +19,7 @@ e = Emu()
 e.stub(0x08042DFC, lambda uc: uc.reg_write(UC_ARM_REG_R0, e.new(uc.reg_read(UC_ARM_REG_R0))))   # DTCM allocator
 APP = 0x24013CB0
 REC = APP + 0x2200 + 3 * 0x18
-F3 = 0x2406D200
+F3 = 0x2001C200
 N = 32
 
 # pad records (FX3 Send lives there)

@@ -200,8 +200,8 @@ struct rstate {
     float rlp[8];
     uint32_t rlfo[4];
 };
-#define RS1 ((volatile struct rstate *)0x2406cc00u)    /* reverb cell; after the WSOLA grain states (..0x2406c9ff) */
-#define RS2 ((volatile struct rstate *)0x2406cd00u)    /* FX3 (src/fx3.c) */
+#define RS1 ((volatile struct rstate *)0x2001bc00u)    /* reverb cell; after the WSOLA grain states (..0x2001b9ff) */
+#define RS2 ((volatile struct rstate *)0x2001bd00u)    /* FX3 (src/fx3.c) */
 _Static_assert(sizeof(struct rstate) <= 0x100, "reverb state must fit its 0x100 slot (tests/test_ram.py)");
 #define RMAGIC 0x52564231u             /* "RVB1" */
 _Static_assert(sizeof(struct rstate) <= 0x100, "reverb state fits its patch RAM slot");
@@ -587,7 +587,7 @@ static void room(volatile struct rstate *RS, float *state, const struct settings
 }
 
 /* --- the core call ---------------------------------------------------------------------------------------------------- */
-#define RVB_OBJ (*(uint8_t *volatile *)0x2406cbf0u)    /* set by reverb_core_thunk: the reverb object (r4 there) */
+#define RVB_OBJ (*(uint8_t *volatile *)0x2001bbf0u)    /* set by reverb_core_thunk: the reverb object (r4 there) */
 
 /* one instance: Type switch clears the buffers, then the algorithm */
 static void run(volatile struct rstate *RS, float *state, const struct settings *st, const float *in, float *outl,

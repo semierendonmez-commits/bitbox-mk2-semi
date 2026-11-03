@@ -66,8 +66,8 @@ void rec_reinit(void *store, const uint8_t *type)
 /* the monitor signal: 2 x 512 floats, shared with master.c's Mix copy (used later in the block, never at the same
    time), and a buffer struct around it for 0x080a33ec (+0 capacity, +4 frames, +8 L, +0xc R, +0x10 silent, +0x11
    stereo) */
-#define MON_L  ((float *)0x2406e000u)
-#define MON_R  ((float *)0x2406e800u)
+#define MON_L  ((float *)0x2001d000u)
+#define MON_R  ((float *)0x2001d800u)
 struct buf { uint32_t cap, frames; float *l, *r; uint8_t silent, stereo, pad[2]; };
 #define MONBUF ((volatile struct buf *)0x2406ab00u)
 

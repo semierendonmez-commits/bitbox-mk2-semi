@@ -140,8 +140,8 @@ struct grains {
 };
 #define GMAGIC 0x57534f4cu      /* "WSOL" */
 #define SLOTS  64               /* 16 pads x 4 slots */
-#define GRAINS ((volatile struct grains *)0x2406c000u)   /* patch RAM, 64 x 40 bytes; device memory, aligned */
-_Static_assert(64 * sizeof(struct grains) <= 0xa00, "grain states must end before 0x2406ca00");
+#define GRAINS ((volatile struct grains *)0x2001b000u)   /* patch RAM, 64 x 40 bytes; device memory, aligned */
+_Static_assert(64 * sizeof(struct grains) <= 0xa00, "grain states must end before 0x2001ba00");
 _Static_assert(sizeof(struct grains) == 40, "grain state size");
 
 /* coarse time for "is this slot still playing": DWT cycle counter / 65536 (136 us at 480 MHz; enabled by load.c) */

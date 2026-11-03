@@ -26,7 +26,7 @@ IMG = open(os.path.join(ROOT, "out", os.environ.get("PK_BUILD", "fidelity+pages+
 SYM = symbols(os.path.join(ROOT, "out", "cave.elf"))
 
 APP_PADS = 0x24015170 + 0x1840
-PARK = 0x2406BD00
+PARK = 0x2001AD00
 RET = 0x24000000
 STACK = 0x2407F000
 P_INTERP = 0xD2
@@ -52,6 +52,7 @@ class Emu:
         mu.mem_map(BASE, (len(IMG) + 0xFFFF) & ~0xFFFF)
         mu.mem_write(BASE, IMG)
         mu.mem_map(0x24000000, 0x80000)          # AXI SRAM
+        mu.mem_map(0x20000000, 0x20000)          # DTCM (patch RAM at its top)
         mu.reg_write(UC_ARM_REG_C1_C0_2, 0xF << 20)   # FPU on
         mu.reg_write(UC_ARM_REG_FPEXC, 0x40000000)
         mu.mem_map(0x30000000, 0x1000000)
@@ -718,8 +719,8 @@ def render(stretch, mode=0, rate=1.0, blocks=120, n=128, seglen=24000.0, unit=24
     set_param(0x1C6, stretch)
     set_param(0x1C7, mode)
     set_param(0x1B7, slice_str or 0)
-    e.wf(0x2406F840 + ((1 * 4 + 2) * 4 + slot) * 4, [slice_speed])
-    e.w32(0x2406C000 + ((1 * 4 + 2) * 4 + slot) * 40, 0)      # this slot's grain state: fresh (time stands still here)
+    e.wf(0x2001E840 + ((1 * 4 + 2) * 4 + slot) * 4, [slice_speed])
+    e.w32(0x2001B000 + ((1 * 4 + 2) * 4 + slot) * 40, 0)      # this slot's grain state: fresh (time stands still here)
     p_ = engine_pad()
     e.w32(p_ + 0x24, wsrc)
     e.wf(p_ + 0x1FC, [seglen])

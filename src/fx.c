@@ -201,7 +201,7 @@ struct dmod {
     float lp[3], lp2[3];                /* loop filter states per line */
     int ready;
 };
-#define DM ((struct dmod *)0x2406d040u)  /* [mk2] patch RAM, 0x80 (tests/test_ram.py) */
+#define DM ((struct dmod *)0x2001c040u)  /* [mk2] patch RAM, 0x80 (tests/test_ram.py) */
 #define DMAGIC 0x444d4f44u               /* "DMOD" */
 _Static_assert(sizeof(struct dmod) <= 0x80, "delay mod state must fit its slot");
 

@@ -24,7 +24,7 @@ from thumb import BASE, bl_target, symbols  # noqa: E402
 IMG = open(os.path.join(ROOT, "out", "fidelity+pages+padpages+sound+reverb+fx3+master+cave", "MICRO.BIN"), "rb").read()
 SYM = symbols(os.path.join(ROOT, "out", "cave.elf"))
 RET, STACK = 0x24000000, 0x2407F000
-PSTATE = 0x2406C110
+PSTATE = 0x2001B110
 REGS = [UC_ARM_REG_R0, UC_ARM_REG_R1, UC_ARM_REG_R2, UC_ARM_REG_R3, UC_ARM_REG_R4, UC_ARM_REG_R5, UC_ARM_REG_R6,
         UC_ARM_REG_R7, UC_ARM_REG_R8, UC_ARM_REG_R12]
 

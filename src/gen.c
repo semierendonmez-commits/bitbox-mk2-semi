@@ -173,7 +173,7 @@ struct gen {
     struct lane lane[NL];
     int32_t log[16];          /* song position of the last 16 hits (lane << 28 | ticks; diagnostics) */
 };
-#define GS ((volatile struct gen *)0x2406d380u)
+#define GS ((volatile struct gen *)0x2001c380u)
 #define GMAGIC 0x47454e31u
 
 static inline int setting(unsigned id) { return fast_get(SETTINGS, id); }

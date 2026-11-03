@@ -5,12 +5,12 @@
  * (pad records: ~66 entries, settings: ~51), every block for every voice; here the index of each (store, param) is
  * remembered in a direct-mapped table and checked against the store before use (id at that index, index < count),
  * so a rebuilt or reloaded store, a collision or a write from another thread can only cost a rescan, never a wrong
- * value. Table: 256 x 8 bytes at 0x2406b000 (patch RAM, free; 0x24070dc0 and up is the firmware's, see re/symbols.md).
+ * value. Table: 256 x 8 bytes at 0x2001a000 (patch RAM, free; 0x24070dc0 and up is the firmware's, see re/symbols.md).
  */
 #include <stdint.h>
 
 struct gcache { uint32_t store; uint16_t param, idx; };
-#define GC ((volatile struct gcache *)0x2406b000u)
+#define GC ((volatile struct gcache *)0x2001a000u)
 
 int fast_get(const void *store, unsigned param)
 {

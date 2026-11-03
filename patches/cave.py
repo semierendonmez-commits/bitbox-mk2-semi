@@ -20,7 +20,7 @@ import os
 
 from thumb import ROOT, STOCK_END
 
-BUILD = b"K"
+BUILD = os.environ.get("SEMI_TAG", "L").encode()   # SEMI_TAG: test builds (sT1 ..)
 
 
 def slot(text, size=16):
@@ -34,5 +34,8 @@ assert len(VERSION) <= 10, "keep the version short (the micro panel showed 10 ch
 PATCHES = [
     (0x080C68EC, slot(b"by 1010music"), slot(b"semi mod")),
     (0x080C68FC, slot(b"2.3.4"), slot(VERSION)),
+    # patch RAM: the top 24 KB of DTCM (0x2001a000..0x2001ffff, tests/test_ram.py). The DTCM bump allocator
+    # (0x08043b88) stops at 0x1a000 instead of 0x20000; bigger requests fall back to malloc / SDRAM as before.
+    (0x08043BA6, bytes.fromhex("b2f5003f"), bytes.fromhex("b2f5d03f")),
     (STOCK_END, b"", open(os.path.join(ROOT, "out", "cave.bin"), "rb").read()),
 ]

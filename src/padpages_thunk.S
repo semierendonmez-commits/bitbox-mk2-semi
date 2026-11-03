@@ -11,7 +11,7 @@
     .thumb
     .text
 
-    .equ PAGE_BYTE, 0x2406c114
+    .equ PAGE_BYTE, 0x2001b114
 
     .macro ROW name, rd, rn
     .global \name
@@ -187,7 +187,7 @@ left_arrow:
      0x080864be movs r2, #0xbc; mov r1, r5      (tile pressed: value query) -> fx3id_r2_r1r5
      0x080864ce movs r1, #0xbc; mov r0, r7      (tile pressed: display)     -> fx3id_r1_r0r7
      0x08086542 ldr r1, [sp]; movs r0, #0xbc    (tile pressed: knob)        -> fx3id_r0_r1sp */
-    .equ FX3_BYTE, 0x2406c115
+    .equ FX3_BYTE, 0x2001b115
 
     .macro FX3ID rd
     ldr     ip, =FX3_BYTE

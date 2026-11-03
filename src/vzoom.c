@@ -22,7 +22,7 @@ typedef void (*inval_fn)(void *w);
 #define fw_wave_inval ((inval_fn)FN(0x080628fc))      /* [mk2] invalidate the widget's 7 tiles */
 
 struct vz { uint8_t *widget; float gain, base; uint32_t pinching; };   /* layout used by vzoom_thunk.S */
-#define VZ ((volatile struct vz *)0x2406d340u)
+#define VZ ((volatile struct vz *)0x2001c340u)
 
 #define GMIN 1.0f
 #define GMAX 32.0f

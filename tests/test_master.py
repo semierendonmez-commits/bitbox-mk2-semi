@@ -164,7 +164,7 @@ e.stubs[0x080BA43C] = _comp
 # --- SSL type: our DSP on bus 0, the stock DSP not called
 put(0x19D, 1)
 seen.clear()
-e.w32(0x2406D180, 0)                                       # SSL state: fresh
+e.w32(0x2001C180, 0)                                       # SSL state: fresh
 def ssl_run(gen, blocks):
     out = []
     for b in range(blocks):
@@ -183,7 +183,7 @@ def steady_reduction(ratio_idx, att=2, rel=0, thr=-20000, amp=0.5):
     put(0x19F, ratio_idx)
     put(0x17D, att)
     put(0x17F, rel)
-    e.w32(0x2406D180, 0)
+    e.w32(0x2001C180, 0)
     out = ssl_run(sine(amp), 300)                          # 0.8 s
     return db(max(abs(x) for x in out[-4800:])) - db(amp)
 red = [steady_reduction(i) for i in (0, 1, 2)]
@@ -196,7 +196,7 @@ def env_after(att_idx, ms):                                # gain reduction (dB)
     put(0x17D, att_idx)
     put(0x17F, 0)
     put(0x19F, 2)
-    e.w32(0x2406D180, 0)
+    e.w32(0x2001C180, 0)
     out = ssl_run(sine(0.5), (ms * 48 + N - 1) // N)
     seg = out[-480:]
     return db(max(abs(x) for x in seg)) - db(0.5)
@@ -207,7 +207,7 @@ def recovery(burst_s, rel_idx):                            # reduction 150 ms af
     put(0x17D, 2)
     put(0x17F, rel_idx)
     put(0x19F, 2)
-    e.w32(0x2406D180, 0)
+    e.w32(0x2001C180, 0)
     nb = int(burst_s * 48000 / N)
     out = ssl_run(lambda k: 0.5 * math.sin(2 * math.pi * 1000 * k / 48000) if k < nb * N else
                   0.01 * math.sin(2 * math.pi * 1000 * k / 48000), nb + 56)
@@ -276,19 +276,19 @@ src = sine(1000, 0.5)
 L0, _ = run(src, 8, type=0, drive=12000, tone=1000, mix=1000, level=0)
 check("Off: bus 0 unchanged", all(abs(a - b) < 1e-6 for a, b in zip(L0, sum((src(b)[0] for b in range(8)), []))))
 
-e.w32(0x2406B800, 0)                                       # fresh state
+e.w32(0x2001A800, 0)                                       # fresh state
 L, R = run(src, 12, type=1, drive=0, tone=1000, mix=0, level=0)
 ref = sum((src(b)[0] for b in range(12)), [])
 check("Mix 0: the dry signal, delayed by the filters' 15 samples (aligned with the wet path)",
       all(abs(L[k] - ref[k - 15]) < 1e-5 for k in range(15, len(L))), max(abs(L[k] - ref[k - 15]) for k in range(15, len(L))))
 
 for name, t in (("Soft", 1), ("Hard", 2), ("Fold", 3), ("Tube", 4)):
-    e.w32(0x2406B800, 0)
+    e.w32(0x2001A800, 0)
     L, R = run(sine(1000, 0.25), 20, type=t, drive=0, tone=1000, mix=1000, level=0)
     s = L[N * 4:]
     h1 = harm(s, 1000, 1)
     lin = abs(h1 - 0.25) < 0.02 if t != 4 else 0.15 < h1 < 0.3
-    e.w32(0x2406B800, 0)
+    e.w32(0x2001A800, 0)
     L, R = run(sine(1000, 0.5), 40, type=t, drive=18000, tone=1000, mix=1000, level=0)
     s = L[N * 24:]                                          # after the DC blocker (Tube) has settled
     h1, h2, h3 = harm(s, 1000, 1), harm(s, 1000, 2), harm(s, 1000, 3)
@@ -300,7 +300,7 @@ for name, t in (("Soft", 1), ("Hard", 2), ("Fold", 3), ("Tube", 4)):
     check(f"{name}: 0 dB drive, -12 dB sine passes ~linearly; 18 dB drive: bounded, odd harmonics, no DC", lin and ok)
 
 # aliasing: 7 kHz at 24 dB drive (hard clip); harmonics above 24 kHz fold back, 2x oversampling must keep them down
-e.w32(0x2406B800, 0)
+e.w32(0x2001A800, 0)
 L, _ = run(sine(7000, 0.5), 30, type=2, drive=24000, tone=1000, mix=1000, level=0)
 s = L[N * 6:]
 f_alias = [abs(48000 - 7000 * 5)]                          # 5th harmonic 35 kHz -> 13 kHz
@@ -311,11 +311,11 @@ check("2x oversampling: the 5th harmonic's alias (13 kHz) at least 20 dB below t
       a_alias < a_fund * 0.1)
 
 # Tone and Level
-e.w32(0x2406B800, 0)
+e.w32(0x2001A800, 0)
 Lo, _ = run(sine(8000, 0.1), 16, type=1, drive=0, tone=1000, mix=1000, level=0)
-e.w32(0x2406B800, 0)
+e.w32(0x2001A800, 0)
 Lt, _ = run(sine(8000, 0.1), 16, type=1, drive=0, tone=300, mix=1000, level=0)
-e.w32(0x2406B800, 0)
+e.w32(0x2001A800, 0)
 Ll, _ = run(sine(1000, 0.1), 16, type=1, drive=0, tone=1000, mix=1000, level=-6000)
 a_o, a_t = harm(Lo[N * 4:], 8000, 1), harm(Lt[N * 4:], 8000, 1)
 a_l = harm(Ll[N * 4:], 1000, 1)

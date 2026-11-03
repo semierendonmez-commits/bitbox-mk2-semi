@@ -41,7 +41,7 @@ struct dd {
     uint32_t last_type;
     uint32_t blocks;          /* audio blocks (dd_block from master_dist): the UI's clock */
 };
-#define DD ((volatile struct dd *)0x2406d300u)
+#define DD ((volatile struct dd *)0x2001c300u)
 #define DD_MAGIC 0x44444631u
 
 static void dd_init(void)

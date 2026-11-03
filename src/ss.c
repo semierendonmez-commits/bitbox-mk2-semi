@@ -67,7 +67,7 @@ struct ss {
     uint32_t rx_seen;
     uint32_t flash;
 };
-#define SS ((volatile struct ss *)0x2406d0c0u)         /* [mk2] patch RAM, 0x40 (tests/test_ram.py) */
+#define SS ((volatile struct ss *)0x2001c0c0u)         /* [mk2] patch RAM, 0x40 (tests/test_ram.py) */
 _Static_assert(sizeof(struct ss) <= 0x40, "saver state fits its slot");
 #define SSMAGIC 0x53415652u
 
