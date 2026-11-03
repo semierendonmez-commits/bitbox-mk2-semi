@@ -4,6 +4,25 @@
 
 Builds for the **bitbox MK2** on top of the stock firmware **2.3.4**, named `2.3.4-s<build>`.
 
+### 2.3.4-sK (2026-11-03)
+
+- **GEN, a generative step sequencer** (the MK2 has no sequencer of its own: the framework's blackbox sequencer code,
+  including its "PLAY: %" step field, has no MK2 screen, so nothing in 2.3.4 ever evaluates it). Four lanes play pads
+  locked to the MK2's clock (internal tempo or MIDI clock; the song position the Clip sync uses). A hit is the same
+  message a touch on the grid sends, so launch mode, choke groups and voices behave as from a touch.
+  - Tools → More → **Gen**: Run, Fill, Epoch (Off / 4 / 8 / 16 / 32 bars); **Gen 2**: Seed, Mutate %.
+  - Per lane (**L1..L4 Gen / Shape / Cond**): Algo, Pad (1–16, top left = 1), Steps (1–32), Hits, Rotate, Rate
+    (1/32, 1/16, 1/8, 1/4, 1/16T, 1/8T), Cond, Prob %, Vel.
+  - Algorithms: **Euclid**; **Breakcut** (BBCut-style cuts of 1–4 steps, a new cut each cycle, sometimes a closing
+    roll); **Call+Resp** (3 cycles call + 1 response); **Evolve** (mutates each cycle by Mutate %, kept near Hits);
+    **Drummap** (own drum maps per lane: kick, snare, hat, percussion; Rotate morphs two variations, Hits = density,
+    velocity from the map); **Random**. All repeat with the same Seed and song position.
+  - **Step conditions** (per lane, on every hit): 1:2, 2:2, 1:3 … 4:4 (A-th of every B cycles), Fill / !Fill,
+    First / !First, then Prob %.
+  - **Epoch** (EPOCH-lite): over N bars the density goes ½ → ¾ → full, the last bar is a fill (Fill conditions on).
+- Settings store capacity 64 → 128 and parameter ids up to 0x2fc (the stock table ends at 0x1d0) for GEN's 41
+  settings. GEN's settings are global (saved with the settings, not per preset).
+
 ### 2.3.4-sJ (2026-11-03)
 
 - **Double tap a dial → its default value.** Two taps on the same dial within 350 ms set the parameter's default

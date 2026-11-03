@@ -20,7 +20,7 @@ import os
 
 from thumb import ROOT, STOCK_END
 
-BUILD = b"J"
+BUILD = b"K"
 
 
 def slot(text, size=16):

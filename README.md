@@ -9,7 +9,7 @@ address translation; the UI is placed anew for the MK2's screens and its two key
 > Unofficial. Not affiliated with or supported by 1010music. Running modified firmware is at your own risk and may
 > affect your warranty. Keep your stock `BITBOXMK2.bin` and flash it back before sending a unit in for service.
 
-## Status: build 2.3.4-sJ
+## Status: build 2.3.4-sK
 
 **emulation** = verified in the Unicorn tests and the Renode simulation of the MK2, **not yet on a unit**.
 Nothing here is hardware-tested yet.
@@ -35,13 +35,15 @@ Nothing here is hardware-tested yet.
 | **Slicer Sync Grid**: Free / 1 bar .. 1/32; with Sync On every slice lasts a whole number of grid steps | Slicer pad → Pos list, after Sync | emulation (Unicorn; Renode UI) |
 | **Slice Str**: Cut (stock) / Stretch (time stretch, pitch kept) / Tape (varispeed); slices fill their synced duration | Slicer pad → Pos list, after Sync Grid | emulation (Renode audio + Unicorn) |
 | **Screen saver**: sweeping scope of Out1/2 + meters (Scope / Meters / Dark), 1–30 min or Off; wakes on touch (swallowed), keys, MIDI | Tools → More → Page: Saver | emulation (Renode screenshots + Unicorn) |
-| **Tools → More** (was Cmp2): Page list Comp 2 / Dist 2 / Saver / CV In / Quantize | Tools | emulation |
+| **Tools → More** (was Cmp2): Page list Comp 2 / Dist 2 / Saver / CV In / Quantize / Gen … | Tools | emulation |
 | **MOD sources KEY** (keyboard tracking) **and ENV** (the pad's ADSR as a source, per pad) | pad → MOD page → Source | emulation (Unicorn: real route code) |
 | **Double tap a dial → default value** (modulation untouched; slow taps do nothing) | every dial page (pad pages, FX cells) | emulation (Renode: Pitch, Res) |
 | **Vertical waveform zoom**: spread / pinch two fingers vertically on the sample waveform (x1..x32, display only) | pad → INFO (waveform) | emulation (Renode, two-finger touch model) |
 | **CV In scale / offset** (0..400 %, −100..+100 %; e.g. 0–5 V over the full range: 200 %, −100 %) | Tools → More → Page: CV In | emulation (Unicorn on the real engine handler, Renode page) |
 | **Quantize**: the pitch of pads played from a CV input snaps to a scale (11 scales, root C..B) | Tools → More → Page: Quantize | emulation (Unicorn) |
-| Splash / Menu version **semi mod 2.3.4-sJ** | boot, Menu lower right | emulation |
+| **GEN generative sequencer**: 4 lanes play pads on the MK2 clock; Euclid, Breakcut, Call+Resp 3+1, Evolve, Drummap, Random; Epoch arc | Tools → More → Page: Gen, Gen 2, L1–L4 Gen / Shape / Cond | emulation (Unicorn: every algorithm and condition; Renode: pads play from GEN) |
+| **Step conditions** per lane: 1:2 … 4:4, Fill / !Fill, First / !First, Prob % | Tools → More → Ln Cond | emulation (Unicorn) |
+| Splash / Menu version **semi mod 2.3.4-sK** | boot, Menu lower right | emulation |
 
 Not ported yet: the recording sends / monitor (recmon.c), pads 9–16 (not needed: the MK2 has 16 pads).
 
@@ -62,14 +64,15 @@ work also the micro 2.3.4 `MICRO.BIN` (SHA-256 `54ecc3e5…4365`). Optional: [Re
 ```sh
 ./setup.sh
 ./build.sh                                                   # src/ -> out/cave.elf, out/cave.bin
-.venv/bin/python -I patch.py fidelity pages sound reverb fixes master fx fx3 ss modsrc ui cave
-                      # -> out/fidelity+pages+sound+reverb+fixes+master+fx+fx3+ss+modsrc+ui+cave/BITBOXMK2.bin
+.venv/bin/python -I patch.py fidelity pages sound reverb fixes master fx fx3 ss modsrc ui gen cave
+                      # -> out/fidelity+pages+sound+reverb+fixes+master+fx+fx3+ss+modsrc+ui+gen+cave/BITBOXMK2.bin
 .venv/bin/python -I tests/test_fidelity.py                   # Unicorn tests on the patched image
 .venv/bin/python -I tests/test_reverb.py
 .venv/bin/python -I tests/test_ram.py
 .venv/bin/python -I tests/test_fixes.py
 .venv/bin/python -I tests/test_master.py
 .venv/bin/python -I tests/test_fx.py
+.venv/bin/python -I tests/test_gen.py
 ```
 
 `patch.py` only writes an image when every check passes: stock hash, expected stock bytes at every patch site, zero
@@ -81,7 +84,7 @@ replaced function is hooked. Build sE: 706,850 bytes (cave 31,954 bytes). The MK
 
 ```sh
 .venv/bin/python -I sim/mk2_card.py out/sim/mk2_sd.img       # test card: one preset, Sample / Clip / Slicer / Granular
-cp out/fidelity+pages+sound+reverb+fixes+master+fx+fx3+ss+modsrc+ui+cave/BITBOXMK2.bin out/mk2/
+cp out/fidelity+pages+sound+reverb+fixes+master+fx+fx3+ss+modsrc+ui+gen+cave/BITBOXMK2.bin out/mk2/
 .venv/bin/python -I sim/run.py --image semi --repl mk2.repl --sd out/sim/mk2_sd.img \
     wait 10 shot pads tap 30 210 0.15 wait 0.8 press K1 wait 1 press K1 wait 1 shot params
 ```
