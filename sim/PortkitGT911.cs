@@ -6,7 +6,7 @@
 // per point from 0x814f + 8 n (track id, coordinate 1 lo / hi, coordinate 2 lo / hi, size lo / hi), then writes 0 to
 // 0x814e. The firmware takes coordinate 2 (0..319) as the UI's x and coordinate 1 (0..239) as its y.
 //
-// Touch(x, y) / Release() from the monitor, in the firmware's UI coordinates (see sim/run.py "touch").
+// Touch(x, y) / Touch2(x, y) (a second finger, track id 1) / Release() from the monitor, in the firmware's UI coordinates (see sim/run.py "touch").
 //
 // Loaded at run time: include @sim/PortkitGT911.cs.
 //
@@ -42,9 +42,22 @@ namespace Antmicro.Renode.Peripherals.Input
             Reads = 0;
         }
 
+        public void Touch2(int x, int y)
+        {
+            touched2 = true;
+            tx2 = x;
+            ty2 = y;
+        }
+
         public void Release()
         {
             touched = false;
+            touched2 = false;
+        }
+
+        public void Release2()
+        {
+            touched2 = false;
         }
 
         public int Reads { get; private set; }
@@ -81,7 +94,20 @@ namespace Antmicro.Renode.Peripherals.Input
             if(reg == 0x814E)
             {
                 Reads++;
-                return (byte)(0x80 | (touched ? 1 : 0));          // always a fresh frame: 1 point or none (release)
+                return (byte)(0x80 | (touched ? (touched2 ? 2 : 1) : 0));   // always a fresh frame: points or none (release)
+            }
+            if(reg >= 0x8157 && reg < 0x8157 + 8)
+            {
+                switch(reg - 0x8157)
+                {
+                    case 0: return 1;
+                    case 1: return (byte)(ty2 & 0xFF);
+                    case 2: return (byte)(ty2 >> 8);
+                    case 3: return (byte)(tx2 & 0xFF);
+                    case 4: return (byte)(tx2 >> 8);
+                    case 5: return 0x20;
+                    default: return 0;
+                }
             }
             if(reg >= 0x814F && reg < 0x814F + 8)
             {
@@ -101,7 +127,7 @@ namespace Antmicro.Renode.Peripherals.Input
 
         private readonly Dictionary<int, byte> regs = new Dictionary<int, byte>();
         private int address;
-        private bool touched;
-        private int tx, ty;
+        private bool touched, touched2;
+        private int tx, ty, tx2, ty2;
     }
 }

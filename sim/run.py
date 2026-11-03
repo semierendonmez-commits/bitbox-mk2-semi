@@ -136,6 +136,14 @@ def build(image, sd, actions, repl="micro.repl", bank2=None):
             uy = (239 - y) if flip else y
             lines.append(f'python "self.Machine[\'sysbus.i2c1.touch\'].Touch({x}, {uy})"')
             i += 3
+        elif act == "touch2":                                # touch2 <x> <y>: a second finger (with touch held)
+            x, y = int(actions[i + 1]), int(actions[i + 2])
+            uy = (239 - y) if flip else y
+            lines.append(f'python "self.Machine[\'sysbus.i2c1.touch\'].Touch2({x}, {uy})"')
+            i += 3
+        elif act == "release2":
+            lines.append('python "self.Machine[\'sysbus.i2c1.touch\'].Release2()"')
+            i += 1
         elif act == "release":
             lines.append('python "self.Machine[\'sysbus.i2c1.touch\'].Release()"')
             i += 1
