@@ -56,7 +56,7 @@ CONFIG = {
         "Leave the power on until it restarts by itself (about 30 seconds).",
         f"Press <b>HOME</b> until the Menu: the lower right shows <b>{VERSION.decode()}</b> (the splash says <b>semi mod</b>).",
         "To go back: the same steps with the stock <code>BITBOXMK2.bin</code> (the Menu then shows 2.3.4).",
-        "Unofficial firmware, not tested on hardware yet: use at your own risk.",
+        "Unofficial firmware: boots on a unit since sL, the features are being checked on hardware. Use at your own risk.",
     ],
     "footer": f'<a href="{REPO}">bitbox-mk2-semi</a> · MIT · ported from <a href="{PORTKIT}">portkit-micro</a> (MIT), '
               f'with findings and code from blackbox-mod by Justin Joe (MIT, <a href="{REPO}/blob/main/THIRD_PARTY.md">'
