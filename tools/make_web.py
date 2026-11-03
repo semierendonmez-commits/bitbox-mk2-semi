@@ -1,4 +1,4 @@
-"""Build, test and publish the browser patcher: docs/index.html (GitHub Pages) + docs/patches/<slug>.json.
+"""Build, test and publish the browser patcher (bitbox MK2): docs/index.html (GitHub Pages) + docs/patches/<slug>.json.
 
   python3 -I tools/make_web.py [--skip-tests] [--allow-dirty]
 
@@ -20,44 +20,47 @@ import webpatch  # noqa: E402
 from cave import VERSION  # noqa: E402
 
 PY = sys.executable
-SETS = ["fidelity", "pages", "padpages", "sound", "reverb", "fx3", "master", "cave"]
-TESTS = ["test_fidelity", "test_padpages", "test_reverb", "test_fx3", "test_master", "test_ram"]
-STOCK = os.path.join(ROOT, "firmware", "MICRO.BIN")
-REPO = "https://github.com/kyrillleier-jpg/portkit-micro"
+SETS = ["fidelity", "pages", "sound", "reverb", "fixes", "master", "fx", "fx3", "ss", "modsrc", "ui", "gen", "cave"]
+TESTS = ["test_fidelity", "test_fx", "test_gen", "test_ram", "test_master", "test_reverb", "test_fixes"]
+STOCK = os.path.join(ROOT, "firmware", "BITBOXMK2.bin")
+IMAGE = "BITBOXMK2.bin"
+REPO = "https://github.com/semierendonmez-commits/bitbox-mk2-semi"
+PORTKIT = "https://github.com/kyrillleier-jpg/portkit-micro"
 
 FEATURES = [
-    ["Fidelity", "Interp list Normal, HighQ, SP1200, SP-12, S950, MPC60, SP Raw, 16k..2k; on Sample, Clip, Slicer and Granular pads"],
-    ["24 dB filter", "State-variable filter replacing the pad biquad, clean resonance"],
-    ["Drive and Filter 2", "tanh drive before the filters, second 24 dB SVF in series (pad main page)"],
-    ["Clip Shift", "Rotate the loop against the grid, -100..100 ms (clip loop page)"],
-    ["Clip Play Len", "Full or 1/4..32 bars (needs Sync)"],
-    ["Clip Stretch", "Tempo ±100 %, Stretch Mode Auto / Jump / Smooth (WSOLA, pitch kept)"],
-    ["Clip Loop Fade", "0..50 ms dip at the loop seams"],
-    ["Sync 1/32", "Eighth Sync entry; Play Len / Stretch hidden when they would have no effect"],
-    ["Reverb types", "Plate / Room / Hall / Chamber with 10 settings and Level"],
-    ["FX3", "Third send with a second reverb, on its own FX row"],
-    ["Master section", "Tools: compressor page (Stock / SSL type, Mix) and master distortion (Soft / Hard / Fold / Tube)"],
-    ["Recording", "Pad sends survive recording; the input monitor goes through the pad's sends"],
-    ["Pads 9-16", "Second page of the pad grid, paging on Pads, Mixer, Effects and the pad picker"],
-    ["Audio load", "CPU load in the status bar"],
+    ["Fidelity", "Interp list Normal, HighQ, SP1200, SP-12, S950, MPC60, SP Raw, 16k..2k on Sample, Clip, Slicer, Granular (Conf)"],
+    ["24 dB filter, Drive, Filter 2", "State-variable filter instead of the pad biquad; tanh drive and a second 24 dB filter (LFO page)"],
+    ["Clip tools", "Shift, Play Len, Stretch % with Str Mode Auto / Jump / Smooth (pitch kept), Loop Fade, Sync 1/32"],
+    ["Slicer sync", "Sync Grid (1 bar .. 1/32) and Slice Str Cut / Stretch / Tape: slices fill their synced duration"],
+    ["Delay and reverb", "Delay types Digital / Tape / BBD, reverb types Plate / Room / Hall / Chamber, each with a second page"],
+    ["FX3 and FX Out", "Third send (touch the selected FX2 cell again); FX returns to Out1/2 or the FX1/2 jacks"],
+    ["Master section", "Compressor Stock / SSL with Mix and bus choice, master distortion Soft / Hard / Fold / Tube"],
+    ["Modulation", "MOD sources KEY (keyboard tracking) and ENV (the pad's ADSR); CV In scale / offset; CV pitch quantizer"],
+    ["GEN sequencer", "4 lanes on the MK2 clock: Euclid, Breakcut, Call+Resp, Evolve, Drummap, Random; step conditions; Epoch"],
+    ["UI", "Double tap a dial for its default; vertical waveform zoom (two fingers); screen saver with a live scope"],
+    ["Fixes and status", "Clip / Slicer Poly Mode Mono honoured; CPU load in the status bar"],
 ]
 
 CONFIG = {
-    "lead": "Fidelity, 24 dB filters, clip stretch, a third FX send, a master section and more for the 1010music "
-            "bitbox micro. Patch your own stock firmware right here; nothing is uploaded.",
-    "stockName": "MICRO.BIN",
-    "stockHint": "The unmodified 2.3.4 from 1010music (the <code>MICRO.BIN</code> inside the download zip).",
-    "stockSource": "Download the 2.3.4 firmware from 1010music and use the <code>MICRO.BIN</code> inside the zip.",
-    "outName": "MICRO.BIN",
+    "lead": "Fidelity modes, 24 dB filters, clip and slicer sync tools, new delay / reverb types, a third FX send, a master "
+            "section, new modulation sources, a generative sequencer and more for the 1010music bitbox MK2. Patch your own "
+            "stock firmware right here; nothing is uploaded.",
+    "stockName": IMAGE,
+    "stockHint": "The unmodified bitbox MK2 2.3.4 from 1010music (the <code>BITBOXMK2.bin</code> inside the download zip).",
+    "stockSource": "Download the bitbox MK2 2.3.4 firmware from 1010music and use the <code>BITBOXMK2.bin</code> inside the zip.",
+    "outName": IMAGE,
     "install": [
-        "Keep your stock <code>MICRO.BIN</code> as a backup.",
-        "Copy the patched <code>MICRO.BIN</code> to the root of the microSD card.",
-        "Hold the <b>white right arrow</b> key while powering on to install.",
-        f"The splash shows <b>portkit mod</b> and version <b>{VERSION.decode()}</b>.",
-        "To go back: the same steps with the stock <code>MICRO.BIN</code>.",
+        "Back up the whole microSD card, and keep your stock <code>BITBOXMK2.bin</code>.",
+        "Copy the patched file to the root of the card (not in a folder); the name must be exactly <code>BITBOXMK2.bin</code>.",
+        "With the unit off, insert the card, hold <b>INFO</b> while powering on and let go when the update message appears.",
+        "Leave the power on until it restarts by itself (about 30 seconds).",
+        f"Press <b>HOME</b> until the Menu: the lower right shows <b>{VERSION.decode()}</b> (the splash says <b>semi mod</b>).",
+        "To go back: the same steps with the stock <code>BITBOXMK2.bin</code> (the Menu then shows 2.3.4).",
+        "Unofficial firmware, not tested on hardware yet: use at your own risk.",
     ],
-    "footer": f'<a href="{REPO}">portkit-micro</a> · MIT · uses findings and code from blackbox-mod by Justin Joe '
-              f'(MIT, <a href="{REPO}/blob/main/THIRD_PARTY.md">notices</a>) · not affiliated with 1010music',
+    "footer": f'<a href="{REPO}">bitbox-mk2-semi</a> · MIT · ported from <a href="{PORTKIT}">portkit-micro</a> (MIT), '
+              f'with findings and code from blackbox-mod by Justin Joe (MIT, <a href="{REPO}/blob/main/THIRD_PARTY.md">'
+              f'notices</a>) · not affiliated with 1010music',
 }
 
 
@@ -84,8 +87,8 @@ def main(argv):
 
     version = VERSION.decode()
     stock = open(STOCK, "rb").read()
-    built = open(os.path.join(ROOT, "out", "+".join(SETS), "MICRO.BIN"), "rb").read()
-    patch = webpatch.make("portkit-micro", version, "2.3.4", stock, built, features=FEATURES)
+    built = open(os.path.join(ROOT, "out", "+".join(SETS), IMAGE), "rb").read()
+    patch = webpatch.make("bitbox-mk2-semi", version, "2.3.4", stock, built, features=FEATURES)
     patch.update(title=f"{version}: everything", source_commit=commit + ("-dirty" if dirty else ""),
                  summary="All patch sets; the combination the tests cover.")
     assert webpatch.apply(patch, stock)["image"] == built
@@ -94,8 +97,8 @@ def main(argv):
     jpath = os.path.join(ROOT, "docs", "patches", f"{patch['slug']}.json")
     json.dump(patch, open(jpath, "w"), indent=1)
     page = open(os.path.join(ROOT, "tools", "patcher.html")).read()
-    for k, v in (("__TITLE__", f"portkit {version} patcher · bitbox micro"),
-                 ("__H1__", f"portkit <span>{version}</span> for bitbox micro"),
+    for k, v in (("__TITLE__", f"bitbox-mk2-semi {version} patcher · bitbox MK2"),
+                 ("__H1__", f"bitbox-mk2-semi <span>{version}</span> for bitbox MK2"),
                  ("__CONFIG__", json.dumps(CONFIG)),
                  ("__PATCHES__", json.dumps([patch], separators=(",", ":")))):
         assert page.count(k) == 1, k
