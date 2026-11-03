@@ -13,9 +13,9 @@ address translation; the UI is placed anew for the MK2's screens and its two key
 > Unofficial. Not affiliated with or supported by 1010music. Running modified firmware is at your own risk and may
 > affect your warranty. Keep your stock `BITBOXMK2.bin` and flash it back before sending a unit in for service.
 
-## Status: build 2.3.4-sM
+## Status: build 2.3.4-sN
 
-**sL booted on a unit** (first hardware test, 2026-11-03; sA..sK did not: see CHANGELOG); sM has the fixes from that test. The features themselves are
+**sL booted on a unit** (first hardware test, 2026-11-03; sA..sK did not: see CHANGELOG); sM / sN have the fixes from that test and new features (not yet tried on a unit). The features themselves are
 **emulation** = verified in the Unicorn tests and the Renode simulation of the MK2; hardware checks per feature follow.
 
 | Feature | Where on the MK2 | Status |
@@ -48,7 +48,11 @@ address translation; the UI is placed anew for the MK2's screens and its two key
 | **Quantize**: the pitch of pads played from a CV input snaps to a scale (11 scales, root C..B) | Tools → More → Page: Quantize | emulation (Unicorn) |
 | **GEN generative sequencer**: 4 lanes play pads on the MK2 clock; Euclid, Breakcut (rearranges the sample / slices: Cut), Call+Resp 3+1 (melodies: Scale, Range), Evolve, Drummap, Random; Epoch arc; Pad 1 = bottom left, Sel = the selected pad | Tools → More → Page: Gen, Gen 2, Gen 3, L1–L4 Gen / Shape / Cond | emulation (Unicorn: every algorithm and condition; Renode: pads play from GEN, Breakcut segments) |
 | **Step conditions** per lane: 1:2 … 4:4, Fill / !Fill, First / !First, Prob % | Tools → More → Ln Cond | emulation (Unicorn) |
-| Splash / Menu version **semi mod 2.3.4-sM** | boot, Menu lower right | emulation |
+| **GEN sN**: Resp Pad (call and response on two pads), Breakcut procedures (BBCut: Classic, ChooseCut, Jungle, WarpCut, SQPusher, CageCut, Timeline, Permute, ThrashCut) with Rolls / Recut, Acid, Turing and Learn lanes, Turn, Drummap X / Y | Tools → More → Gen 4 / 5 / 6, Ln Resp | emulation (Unicorn; Renode audio) |
+| **Delay type Codec** (ADPCM generation loss, frame loss), **Fidelity Phone / ADPCM / u-Law** | FX1 → INFO; pad Conf list | emulation (Unicorn) |
+| **MOD sources CHAOS, RAND, NET** | pad → MOD page → Source | emulation (Unicorn) |
+| **Saver views** Barcode / Matrix / Rain / Pulse; **colour themes** (10) | Tools → More → Saver | emulation (Renode screenshots) |
+| Splash / Menu version **semi mod 2.3.4-sN** | boot, Menu lower right | emulation |
 
 Not ported yet: the recording sends / monitor (recmon.c), pads 9–16 (not needed: the MK2 has 16 pads).
 

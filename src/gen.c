@@ -12,7 +12,12 @@
  *   Gen:     Run (Off / On), Fill (Off / On: the Fill conditions), Epoch (Off, 4 / 8 / 16 / 32 bars)
  *   Gen 2:   Seed (0..999), Mutate % (Evolve's change per cycle, Breakcut's variation and jumps)
  *   Gen 3:   Cut (Breakcut rearranges the sound: Off / On), Scale and Range (0..24 semitones) of Call+Resp's melody
- *   Ln Gen:  Algo (Off, Euclid, Breakcut, Call+Resp, Evolve, Drummap, Random), Pad (Sel = the pad selected on the
+ *   Gen 4:   Proc (Breakcut's procedure: Basic, Classic, ChooseCut, Jungle, WarpCut, SQPusher, CageCut, Timeline,
+ *            Permute, ThrashCut), Rolls (Off / Normal / Dense / Fade), Recut (every cycle / 2 / 4 / 8 / Locked)
+ *   Gen 5:   Accent %, Slide % (Acid, Turing slides), Lock (Turing)
+ *   Gen 6:   Map Y (Drummap's Y; X = Rotate), Learn (grid hits teach the Learn lanes), Turn (Off / 8 / 16 / 32 bars)
+ *   Ln Resp: Resp Pad (Same, Sel, 1..16): where Call+Resp's response plays
+ *   Ln Gen:  Algo (Off, Euclid, Breakcut, Call+Resp, Evolve, Drummap, Random, Acid, Turing, Learn), Pad (Sel = the pad selected on the
  *            grid, 1..16: 1 = bottom left, 5 = the row above), Steps (1..32)
  *   Ln Shape: Hits (density 0..32), Rotate (0..31; Drummap: the map's X), Rate (1/32, 1/16, 1/8, 1/4, 1/16T, 1/8T)
  *   Ln Cond: Cond (Always, 1:2, 2:2, 1:3, 2:3, 3:3, 1:4, 2:4, 3:4, 4:4, Fill, !Fill, First, !First), Prob %, Vel
@@ -1121,6 +1126,19 @@ static void pad_param(uint8_t *eng, uint32_t cell, unsigned param, int value)
 #define VT_SAMPLE  0x080df054u
 #define PAD_START  0xf8
 #define PAD_FRAMES 0x100
+/* the Clip / Slicer class object of a cell (vtable 0x080df17c): its slices at +0x24c (frame starts), count +0x250 */
+#define VT_CLIP 0x080df17cu
+static int slice_count(uint8_t *eng, uint32_t cell)
+{
+    uint8_t *p = *(uint8_t *const *)(eng + PADS_LIST + 8);
+    for (int guard = 0; p && guard < 128; guard++, p = *(uint8_t *const *)(p + 0x10))
+        if (*(const uint32_t *)p == VT_CLIP && *(const uint32_t *)(p + 0x18) == cell) {
+            int n = *(const int32_t *)(p + 0x250);
+            return n >= 1 && n <= 128 ? n : 0;
+        }
+    return 0;
+}
+
 static uint8_t *sample_pad(uint8_t *eng, uint32_t cell)
 {
     uint8_t *p = *(uint8_t *const *)(eng + PADS_LIST + 8);
@@ -1366,11 +1384,15 @@ void gen_tick(void)
             int mode = fast_get(pad_record(cell), P_PADMODE);
             int slicer = mode == 2;
             int nt = p.semi[pos] ? 48 + p.semi[pos] : 0;
-            if (slicer && nt)
-                nt = SLICE0 + p.semi[pos];              /* a Slicer: the melody picks slices */
+            int nslices = slicer ? slice_count(eng, cell) : 0;
+            if (slicer && nt) {
+                int k = p.semi[pos] < 0 ? -p.semi[pos] : p.semi[pos];
+                nt = SLICE0 + (nslices ? k % nslices : k);   /* a Slicer: the melody picks slices */
+            }
             if (algo == A_BREAK && p.seg[pos] >= 0 && setting(P_CUT) == 1 && (mode == 0 || slicer)) {   /* not Clip / Granular */
                 if (slicer) {
-                    nt = SLICE0 + p.seg[pos];           /* the cut's slice (step k = slice k) */
+                    /* the cut's slice: the segment's place among the pad's slices (Steps 16, 8 slices: 2 steps a slice) */
+                    nt = SLICE0 + (nslices ? p.seg[pos] * nslices / n : p.seg[pos]);
                 } else {
                     uint8_t *sp = sample_pad(eng, cell);
                     int frames = sp ? *(volatile int32_t *)(sp + PAD_FRAMES) : 0;

@@ -20,12 +20,14 @@ Builds (portkit's micro history up to pkZD: portkit-micro CHANGELOG.md):
   L = patch RAM moved to the top of DTCM and zeroed at boot (sA..sK did not boot on a unit)
   M = FX1 / FX2 / FX3 Send modulatable; GEN: Pad Sel + numbering from the bottom left, velocity, Breakcut rearranges
       the sample / slices (Cut), Call+Resp melodies (Scale, Range); Tape / BBD delay character
+  N = GEN: Resp Pad, Breakcut procedures (BBCut), Acid, Turing, Learn, Turn, Drummap Y; Codec delay, Fidelity Phone /
+      ADPCM / u-Law; MOD sources CHAOS / RAND / NET; saver views Barcode / Matrix / Rain / Pulse; colour themes
 """
 import os
 
 from thumb import ROOT, STOCK_END, bl, symbols
 
-BUILD = os.environ.get("SEMI_TAG", "M").encode()   # SEMI_TAG: test builds (sT1 ..)
+BUILD = os.environ.get("SEMI_TAG", "N").encode()   # SEMI_TAG: test builds (sT1 ..)
 
 
 def slot(text, size=16):

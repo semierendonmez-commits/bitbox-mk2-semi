@@ -4,6 +4,35 @@
 
 Builds for the **bitbox MK2** on top of the stock firmware **2.3.4**, named `2.3.4-s<build>`.
 
+### 2.3.4-sN (2026-11-03)
+
+- **Call+Resp across pads** (**Ln Resp → Resp Pad**: Same, Sel, 1–16): the three calls play on the lane's pad, the
+  response on another pad (Same = as before).
+- **Breakcut procedures** (**Gen 4 → Proc**: Basic (sM's), Classic, ChooseCut, Jungle, WarpCut, SQPusher, CageCut,
+  Timeline, Permute, ThrashCut; Nick Collins' BBCut via our OpenTracker fork). Mutate % is each procedure's amount.
+  **Rolls**: Off / Normal / Dense / Fade (rolls now play several hits inside a step); **Recut**: new cuts every
+  cycle, every 2 / 4 / 8 cycles, or Locked. On Slicer pads the segments follow the pad's real number of slices.
+- **Acid lane** (Algo Acid, after TB-3PO): Hits = density (sparse root-heavy … busy melodic), Scale / Range from
+  Gen 3, **Gen 5 → Accent %, Slide %** (a slide ties the note into the next); Mutate % re-rolls steps each cycle.
+- **Turing lane** (Algo Turing): a 16-bit shift register, **Gen 5 → Lock** (+100 locked loop of Steps, 0 random,
+  −100 double length inverted), Hits = density, pitch from Scale / Range.
+- **Learn lane** (Algo Learn, **Gen 6 → Learn: On**): hits you play on the lane's pad teach a Markov chain of the
+  gaps and where in the cycle you hit; the lane plays variations of it (RAM only, gone after power off).
+- **Turn** (**Gen 6 → Turn**: Off / 8 / 16 / 32 bars): the last beat (16 / 32 bars: the last two) of every phrase
+  turns: a roll, a stutter of the beat before, a drop (silence) or a fill — from Seed.
+- **Drummap X / Y**: Rotate = X, **Gen 6 → Map Y** = Y: four maps per part (new: broken / garage and half-time).
+- **Delay type Codec**: each repeat through IMA ADPCM at 4–16 kHz (Tone) — generation loss; Drive drops 10 ms frames
+  (packet loss, up to 30 %).
+- **Fidelity Phone / ADPCM / u-Law**: 8 kHz mu-law with a 3.4 kHz low-pass / 4-bit ADPCM at 22 kHz / mu-law at 16 kHz.
+- **MOD sources CHAOS** (a Lorenz attractor), **RAND** (a new random value on every note, held), **NET** (four
+  coupled nonlinear nodes, slower). Sample / Granular pads (as ENV); also usable on the sends.
+- **Saver views** Barcode, Matrix, Rain, Pulse (DATASCREEN-style views of the pads and GEN's lanes; Saver → View).
+- **Colour themes** (**Saver → Theme**: Stock, Iznik, Acetate, Pirate FM, Oscillo, Riso, Bauhaus, Aurora,
+  Concrete, Soundsys): the UI palette's pad, background, selection and accent colours, the DMA2D colour tables
+  reloaded; the screen takes them as it redraws.
+- Not done yet: "Breaks" auto-slicing and automatic root note detection (they need the slicer's Scan and the sample
+  loader worked out first).
+
 ### 2.3.4-sM (2026-11-03)
 
 From the first hardware test of sL:

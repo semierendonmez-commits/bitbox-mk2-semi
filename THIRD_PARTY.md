@@ -34,6 +34,20 @@ SOFTWARE.
 The state-variable filter in `src/filter.c` follows `stmlib/dsp/filter.h` (class `Svf`), Copyright 2014 Emilie Gillet,
 MIT licence.
 
+## polyend-tracker-re-semi (OpenTracker fork, Apache-2.0)
+
+GEN's Breakcut procedures, Acid and Turing lanes in `src/gen.c` are ported (rewritten in C for GEN's step grid) from
+our own generators in [semierendonmez-commits/polyend-tracker-re-semi](https://github.com/semierendonmez-commits/polyend-tracker-re-semi)
+(`src/core/gen/gen_bbcut.cpp`, `gen_acid.cpp`, `gen_turing.cpp`), Apache License 2.0. Those follow Nick Collins'
+BBCut as ported by bencodec/BBenCut (the procedures and the SQPusher1 fill table), Logarhythm's TB-3PO (O_C
+Hemisphere) and the Music Thing Turing Machine (behaviour, not its circuit). The theme names follow that fork's theme
+pack; the colours here are new.
+
+## Codecs
+
+`src/codec.c` implements G.711 mu-law and IMA / DVI ADPCM from the public standards (own code); the idea of codec
+delays and lo-fi modes comes from our TRANSCODE / FRAMELOSS plug-ins, which use Frieve-A's EffeTune (MIT).
+
 ## 1010music firmware
 
 Not included and not licensed here. The patcher needs your own copy of the stock `MICRO.BIN` 2.3.4 in `firmware/`.

@@ -28,16 +28,16 @@ REPO = "https://github.com/semierendonmez-commits/bitbox-mk2-semi"
 PORTKIT = "https://github.com/kyrillleier-jpg/portkit-micro"
 
 FEATURES = [
-    ["Fidelity", "Interp list Normal, HighQ, SP1200, SP-12, S950, MPC60, SP Raw, 16k..2k on Sample, Clip, Slicer, Granular (Conf)"],
+    ["Fidelity", "Interp list Normal, HighQ, SP1200, SP-12, S950, MPC60, SP Raw, 16k..2k, Phone, ADPCM, u-Law on every pad mode (Conf)"],
     ["24 dB filter, Drive, Filter 2", "State-variable filter instead of the pad biquad; tanh drive and a second 24 dB filter (LFO page)"],
     ["Clip tools", "Shift, Play Len, Stretch % with Str Mode Auto / Jump / Smooth (pitch kept), Loop Fade, Sync 1/32"],
     ["Slicer sync", "Sync Grid (1 bar .. 1/32) and Slice Str Cut / Stretch / Tape: slices fill their synced duration"],
-    ["Delay and reverb", "Delay types Digital / Tape (wow, flutter, drive) / BBD (dark, delay-time clock), reverb types Plate / Room / Hall / Chamber, each with a second page"],
+    ["Delay and reverb", "Delay types Digital / Tape (wow, flutter, drive) / BBD (dark, delay-time clock) / Codec (ADPCM generation loss), reverb types Plate / Room / Hall / Chamber, each with a second page"],
     ["FX3 and FX Out", "Third send (touch the selected FX2 cell again); FX1 / FX2 / FX3 Send modulatable (MOD page); FX returns to Out1/2 or the FX1/2 jacks"],
     ["Master section", "Compressor Stock / SSL with Mix and bus choice, master distortion Soft / Hard / Fold / Tube"],
-    ["Modulation", "MOD sources KEY (keyboard tracking) and ENV (the pad's ADSR); CV In scale / offset; CV pitch quantizer"],
-    ["GEN sequencer", "4 lanes on the MK2 clock: Euclid, Breakcut (rearranges sample / slices), Call+Resp (melodies), Evolve, Drummap, Random; step conditions; Epoch"],
-    ["UI", "Double tap a dial for its default; vertical waveform zoom (two fingers); screen saver with a live scope"],
+    ["Modulation", "MOD sources KEY, ENV, CHAOS, RAND, NET; FX sends modulatable; CV In scale / offset; CV pitch quantizer"],
+    ["GEN sequencer", "4 lanes on the MK2 clock: Euclid, Breakcut (BBCut procedures, rearranges sample / slices), Call+Resp (melodies, across pads), Evolve, Drummap X/Y, Random, Acid, Turing, Learn; step conditions; Epoch, Turn"],
+    ["UI", "Double tap a dial for its default; vertical waveform zoom; screen saver (scope, data views); 10 colour themes"],
     ["Fixes and status", "Clip / Slicer Poly Mode Mono honoured; CPU load in the status bar"],
 ]
 
@@ -90,7 +90,7 @@ def main(argv):
     built = open(os.path.join(ROOT, "out", "+".join(SETS), IMAGE), "rb").read()
     from thumb import STOCK_END, symbols
     sym = symbols(os.path.join(ROOT, "out", "cave.elf"))
-    allow = [(sym["mod_codes"] - STOCK_END - 4, sym["mod_codes"] - STOCK_END + 2 * 21,
+    allow = [(sym["mod_codes"] - STOCK_END - 4, sym["mod_codes"] - STOCK_END + 2 * 24,
               "modsrc.c mod_codes: the stock MOD source code list (written out in our source) + KEY, ENV; with the zero padding before it")]
     patch = webpatch.make("bitbox-mk2-semi", version, "2.3.4", stock, built, features=FEATURES, allow=allow)
     patch.update(title=f"{version}: everything", source_commit=commit + ("-dirty" if dirty else ""),
