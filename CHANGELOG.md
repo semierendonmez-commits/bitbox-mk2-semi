@@ -4,6 +4,15 @@
 
 Builds for the **bitbox MK2** on top of the stock firmware **2.3.4**, named `2.3.4-s<build>`.
 
+### 2.3.4-sI (2026-11-03)
+
+- **Modulation sources KEY and ENV** at the end of the pads' MOD Source list. **KEY**: keyboard tracking (the MIDI note
+  relative to C3; the engine already had this per-voice source, without a list entry). **ENV**: the pad's envelope as a
+  source (Attack / Decay / Sustain / Release of the pad, gate = any of its voices playing, retriggered by new voices;
+  per pad). ENV reaches every target the pad-level sources reach: Level, Gain, Pan, Filter, Res, LFO rate / depth,
+  Attack / Decay / Release, and the other stock targets (checked through the real route code in Unicorn).
+- Screen saver: also woken by touches on dial pages.
+
 ### 2.3.4-sH (2026-11-03)
 
 - **Screen saver with a live monitor**: after 1 / 2 / 5 (default) / 10 / 30 minutes without input (or Off) the screen

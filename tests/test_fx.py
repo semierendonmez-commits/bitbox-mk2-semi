@@ -264,6 +264,20 @@ if "slicer_len" in SYM:
     del e.stubs[SYM["pad_setting"] & ~1]
     check("slice voice start: bl at 0x080b5aaa -> slicer_len_thunk", bl_at(0x080B5AAA) == SYM["slicer_len_thunk"] & ~1)
 
+# --- ENV through the real route add (0x080af648(pad, msg): +0xc target, +0x10 slot, +0x14 source code, +0x16 amount)
+if "modsrc_route_thunk" in SYM:
+    def route(code, target):
+        padr = e.new(0x1000)
+        e.w32(padr + 0x18, (1 << 8) | 2)
+        msg = e.new(0x20)
+        e.mu.mem_write(msg + 0xC, struct.pack("<IIHh", target, 1, code, 1000))
+        e.call(0x080AF648, padr, msg)
+        return padr, [o for o in range(0, 0x1000, 4) if e.r32(padr + o) in (0x2406D200 + 6 * 16, padr + 0x13C)]
+    p_env, hits_env = route(0x30, 0xAA)                      # ENV -> Filter (0xaa)
+    p_pt, hits_pt = route(0x19, 0xAA)                        # PTCH -> Filter (stock path, for comparison)
+    check("route add: ENV -> Filter puts the ENV object into a pad-level slot, at the place PTCH's object goes",
+          hits_env and hits_env == hits_pt, (hits_env, hits_pt))
+
 # --- screen saver (ss.c, patches/ss.py)
 if "ss_dispatch" in SYM:
     check("saver: dispatcher (3 sites), HAL_LTDC_SetAddress (2), UART RxISR pointer (2) hooked",
@@ -291,14 +305,40 @@ if "ss_dispatch" in SYM:
 
 # --- KEY modulation source (modsrc.c, patches/modsrc.py)
 if "mod_codes" in SYM:
-    codes = struct.unpack_from("<20H", IMG, SYM["mod_codes"] - BASE)
-    names = [e.cstr(struct.unpack_from("<I", IMG, SYM["mod_names"] + 4 * k - BASE)[0]) for k in range(20)]
-    check("KEY source: code table = stock 19 + 14, names stock 19 + KEY; all three literals and counts patched",
-          codes[:19] == struct.unpack_from("<19H", open(os.path.join(ROOT, "firmware", "BITBOXMK2.bin"), "rb").read(), 0x080C5DE4 - BASE) and codes[19] == 14 and names[19] == "KEY"
+    codes = struct.unpack_from("<21H", IMG, SYM["mod_codes"] - BASE)
+    names = [e.cstr(struct.unpack_from("<I", IMG, SYM["mod_names"] + 4 * k - BASE)[0]) for k in range(21)]
+    check("KEY / ENV sources: codes = stock 19 + 14, 0x30, names + KEY, ENV; all three literals and counts patched",
+          codes[20] == 0x30 and names[20] == "ENV" and codes[:19] == struct.unpack_from("<19H", open(os.path.join(ROOT, "firmware", "BITBOXMK2.bin"), "rb").read(), 0x080C5DE4 - BASE) and codes[19] == 14 and names[19] == "KEY"
           and names[:3] == ["none", "EXT1", "EXT2"]
           and all(struct.unpack_from("<I", IMG, a - BASE)[0] == SYM["mod_codes"] for a in (0x0807A8BC, 0x08083F48, 0x08091A10))
           and all(struct.unpack_from("<I", IMG, a - BASE)[0] == SYM["mod_names"] for a in (0x0806AACC, 0x08083F4C))
-          and IMG[0x0806A9A6 - BASE] == 20 and IMG[0x08083D98 - BASE] == 20 and IMG[0x080917FA - BASE] == 20, (codes, names))
+          and IMG[0x0806A9A6 - BASE] == 21 and IMG[0x08083D98 - BASE] == 21 and IMG[0x080917FA - BASE] == 21, (codes, names))
+    # ENV: the pick gives code 0x30 the pad's object, keeps PTCH; the tick runs the envelope on the pad's gate
+    padx = e.new(0x700)
+    e.w32(padx + 0x18, (1 << 8) | 2)                        # row 1, col 2 (the test record)
+    e.w32(0x2406D200 + 6 * 16, 0)                           # its ENV slot: fresh
+    obj = e.call(SYM["modsrc_pick"], 0x30, padx)
+    ptch = e.call(SYM["modsrc_pick"], 0x19, padx)
+    other = e.call(SYM["modsrc_pick"], 0x10, padx)
+    prec = APP + 0x1840 + 1 * 0xF0 + 2 * 0x30              # its pad record (filter.c's pad_setting)
+    t3 = e.new(4)
+    e.mu.mem_write(t3, b"\x03")
+    e.call(0x08089E7C, prec, t3)
+    for pid, v in ((0x1F, 300), (0x21, 300), (0x22, 600), (0x23, 300), (0x6D, 0)):
+        e.call(0x080893B2, prec, pid, v)
+    levels = []
+    def tick(n, voices):
+        e.w32(padx + 0x6C, voices)
+        for _ in range(n):
+            e.call(SYM["modenv_tick"])
+        levels.append(e.rf(obj + 4, 1)[0])
+    tick(1, 0)
+    tick(40, 1)                                             # gate on: attack 300 (0.27 s): ~0.39 after 40 blocks
+    tick(400, 1)                                            # then decay to the sustain 0.6
+    tick(400, 0)                                            # gate off: release
+    check("ENV: object = ENV slot of the pad (row 1, col 2), PTCH = pad +0x13c, other codes 0; rises on a voice, falls "
+          "after release", obj == 0x2406D200 + 6 * 16 and ptch == padx + 0x13C and other == 0 and levels[0] == 0.0
+          and 0.2 < levels[1] < 0.6 and abs(levels[2] - 0.6) < 0.01 and levels[3] == 0.0, (hex(obj), levels))
 
 print(f"\n{'FAILED: ' + str(failures) if failures else 'all passed'}")
 sys.exit(1 if failures else 0)

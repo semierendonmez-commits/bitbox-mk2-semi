@@ -14,12 +14,13 @@ Builds (portkit's micro history up to pkZD: portkit-micro CHANGELOG.md):
   F = Slicer Sync Grid (slice durations on a 1 bar .. 1/32 grid with Sync On)
   G = Slice Str: Cut / Stretch (WSOLA) / Tape (varispeed) for synced slices
   H = screen saver with a live monitor (scope, meters), wake on touch / keys / MIDI; Tools -> More with pages
+  I = MOD sources KEY (keyboard tracking) and ENV (the pad's envelope)
 """
 import os
 
 from thumb import ROOT, STOCK_END
 
-BUILD = b"H"
+BUILD = b"I"
 
 
 def slot(text, size=16):
