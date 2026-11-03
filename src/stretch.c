@@ -317,15 +317,22 @@ static int running(volatile const struct grains *g, uint32_t now)
     return g->magic == GMAGIC && ((now - (g->has_old >> 16)) & 0xffffu) < GAP16;
 }
 
+int slicer_stretch(const uint8_t *pad, int slot_index, float *speed);                       /* slicer.c */
+
 int clip_render(void *pad_, int unused, int64_t pos64, float rate, int n, int *consumed, float *frac, void *srcbuf,
                 void *outbuf, void **result)
 {
     const uint8_t *pad = pad_;
     volatile struct grains *g = pad ? slot_grains(pad, frac) : 0;
     uint32_t now = now16();
+    /* Slicer with Sync On and Slice Str Stretch / Tape (slicer.c): the slice fills its synced duration */
+    float sc = 0.0f;
+    int sm = pad && pad[PAD_SLICED] ? slicer_stretch(pad, (int)((const uint8_t *)frac - SLOT_FRAC - pad - SLOT0) / SLOT_SIZE, &sc) : 0;
+    if (sm == 2)
+        return fw_slot_read(pad_, unused, pos64, sc, n, consumed, frac, srcbuf, outbuf, result);
     /* Auto stays smooth while the slot keeps playing smoothly (no switch to the stock read when Stretch crosses 0) */
     int latched = g && running(g, now) && pad[PAD_SYNCED] && !pad[PAD_SLICED] && pad_setting(pad, P_SMODE) == 0;
-    if (!smooth(pad) && !latched)
+    if (!sm && !smooth(pad) && !latched)
         return fw_slot_read(pad_, unused, pos64, rate, n, consumed, frac, srcbuf, outbuf, result);
     void *stream = *(void *const *)(pad + PAD_STREAM);
     int total = fw_frames(stream);
@@ -333,9 +340,11 @@ int clip_render(void *pad_, int unused, int64_t pos64, float rate, int n, int *c
     if (total + 0xff < pos)
         return 0;
     float seglen = *(const float *)(pad + PAD_SEGLEN), unit = *(const float *)(pad + PAD_UNITOUT);
+    if (sm)
+        seglen = unit = 2.0f;                           /* slices: c from slicer.c */
     if (!(unit > 1.0f) || !(seglen > 1.0f) || !(rate > 0.0f) || n <= 0)
         return fw_slot_read(pad_, unused, pos64, rate, n, consumed, frac, srcbuf, outbuf, result);
-    double c = (double)seglen * clip_stretch_speed(pad) / unit;     /* file frames per output frame */
+    double c = sm ? (double)sc : (double)seglen * clip_stretch_speed(pad) / unit;   /* file frames per output frame */
 
     if (!g)
         return fw_slot_read(pad_, unused, pos64, rate, n, consumed, frac, srcbuf, outbuf, result);
@@ -372,7 +381,7 @@ int clip_render(void *pad_, int unused, int64_t pos64, float rate, int n, int *c
        turned, Shift, ...): the running grains play on and the next grain (<= HOP frames later) is searched near the new
        position - an ordinary WSOLA splice instead of a hard cut. */
     int jump = dp > 1.0 || dp < -1.0;
-    if (!running(g, now) || (jump && p < (double)HOP * rate)) {
+    if (!running(g, now) || (jump && (sm || p < (double)HOP * rate))) {   /* a new slice: a clean start */
         g->magic = GMAGIC;
         g->age = HOP;
         g->s_new = p - (double)HOP * rate;              /* centred: its frame for "now" is p */

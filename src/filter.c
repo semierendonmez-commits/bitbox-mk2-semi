@@ -152,6 +152,7 @@ void pad_store_add(void *store, unsigned param, int value)
     fw_store_add(store, P_SMODE, 0);
     fw_store_add(store, P_FX3SEND, 0);
     fw_store_add(store, 0x1b6, 0);                                            /* slicer.c: Sync Grid (Free) */
+    fw_store_add(store, 0x1b7, 0);                                            /* slicer.c: Slice Str (Cut) */
     fw_store_add(store, P_LFADE, 0);   /* 67 in the full pad record (58 stock + 9); capacity raised to 72 (sound.py) */
 }
 

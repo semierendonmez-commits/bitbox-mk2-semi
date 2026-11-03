@@ -23,6 +23,7 @@ STORE_ADD = 0x080893D6
 PAGE_BUILDER = 0x08078EC8
 
 HOOKS = [
+    (0x080B5ACE, 0x080B576C, "slicer_start"),          # slice start, Sync path: note the slot's speed (Slice Str)
     # pad record init 0x08089400: the two pad blocks' "add Filter (0xaa)" -> add it, then the new parameters
     (0x080895B0, STORE_ADD, "pad_store_add"),
     (0x080897DA, STORE_ADD, "pad_store_add"),
@@ -95,7 +96,7 @@ POS = [0x6F, 0xB4, 0x2A, 0x76]
 # indicator like Start / Length if the firmware lets them be modulated. Stock shows the sends only as bars on the FX
 # screen (forum wish: "mix % per cell"). Pan is already on the Conf list, with modulation.
 P_FX1, P_FX2, P_FX3 = 0xBB, 0xBC, 0x1C8
-P_SGRID = 0x1B6
+P_SGRID, P_SSTR = 0x1B6, 0x1B7
 SLICER_TABLES = [TABLES["slicer_a"], TABLES["slicer_b"]]
 
 
@@ -108,8 +109,8 @@ def sends_patch(table, page):
     if table in SLICER_TABLES and page == 1:         # Sync Grid (slicer.c) right after Sync (0xd5)
         k = ids.index(0xD5) + 1
         tail = ids[k:n]
-        return (at + 2 * k, struct.pack(f"<{len(tail) + 4}H", *tail, 0, 0, 0, 0),
-                struct.pack(f"<{len(tail) + 5}H", P_SGRID, *tail, P_FX1, P_FX2, P_FX3, 0)[:2 * (len(tail) + 4)])
+        return (at + 2 * k, struct.pack(f"<{len(tail) + 5}H", *tail, 0, 0, 0, 0, 0),
+                struct.pack(f"<{len(tail) + 5}H", P_SGRID, P_SSTR, *tail, P_FX1, P_FX2, P_FX3))
     return (at + 2 * n, bytes(8), struct.pack("<4H", P_FX1, P_FX2, P_FX3, 0))
 
 

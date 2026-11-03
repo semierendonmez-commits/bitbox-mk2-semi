@@ -53,6 +53,8 @@ def run(path):
             names = []
             if kind == "list":
                 names = [s(struct.unpack("<I", uc.mem_read(r3 + 4 * k, 4))[0]) for k in range(min(st[0], 200))]
+            elif kind == "knob":
+                names = [f"type {r2} min {struct.unpack('<i', struct.pack('<I', st[0]))[0]} max {st[1]}"]
             out.append((r1, kind, s(label), xml, names))
             ret(uc)
         return h

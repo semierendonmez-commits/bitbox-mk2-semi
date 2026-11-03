@@ -4,6 +4,15 @@
 
 Builds for the **bitbox MK2** on top of the stock firmware **2.3.4**, named `2.3.4-s<build>`.
 
+### 2.3.4-sG (2026-11-03)
+
+- **Slice Str** (Slicer Pos list, after Sync Grid; with Sync On): how a slice fills its synced duration.
+  **Cut** = stock (the slice plays at its pitch and is cut, or leaves a gap). **Stretch** = time stretch (WSOLA
+  grains, as Clip's Str Mode Smooth): the pitch stays, the slice lasts exactly the synced duration. **Tape** =
+  varispeed: the slice is resampled to the duration (the pitch follows the tempo). With Sync Grid this is the Clip
+  mode's tempo sync for slices. Renode (1 kHz sine slices): Cut 0.13 s, Stretch and Tape fill the 0.25 s duration,
+  Stretch at the stock pitch, Tape resampled; Unicorn: speed 0.5 -> Stretch keeps 1 kHz, Tape 500 Hz.
+
 ### 2.3.4-sF (2026-11-03)
 
 - **Slicer Sync Grid** (forum wish "Slicer mode with the sync features of Clip mode"): a new row after Sync in the

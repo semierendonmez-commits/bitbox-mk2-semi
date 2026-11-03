@@ -12,12 +12,13 @@ Builds (portkit's micro history up to pkZD: portkit-micro CHANGELOG.md):
       two-page delay and reverb cells, Compressor bus (Out1/2, FX1/2, Both), numeric FX sends in the Pos list
   E = FX3: a third send (reverb, every type) on the FX2 cell (second touch: FX 3), FX3 Send in the Pos list
   F = Slicer Sync Grid (slice durations on a 1 bar .. 1/32 grid with Sync On)
+  G = Slice Str: Cut / Stretch (WSOLA) / Tape (varispeed) for synced slices
 """
 import os
 
 from thumb import ROOT, STOCK_END
 
-BUILD = b"F"
+BUILD = b"G"
 
 
 def slot(text, size=16):

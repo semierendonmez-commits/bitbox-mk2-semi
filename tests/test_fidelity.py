@@ -473,7 +473,7 @@ set_param(0x1C3, 0)
 clip_loop = [struct.unpack_from("<9H", IMG, t + 1 * 36 * 2 - 0x08040000) for t in (0x080C7BD4, 0x080C7D3C)]   # MK2 Pos list
 check("Clip loop page: Loop Mode, Beat Count, Quant Size, Sync, Shift, Play Len, Stretch, Stretch Mode, Loop Fade",
       all(p == (0x6F, 0xB4, 0x2A, 0x76, 0x1C3, 0x1C4, 0x1C6, 0x1C7, 0x183) for p in clip_loop), clip_loop)
-check("full pad record (type 3): 68 entries (+ Sync Grid), capacity raised to 72", cnt3 == 68 and ids3.get(0x1B6) == 0 and cap3 == 72 and ids3.get(0x1C8) == 0,
+check("full pad record (type 3): 69 entries (+ Sync Grid, Slice Str), capacity raised to 72", cnt3 == 69 and ids3.get(0x1B6) == 0 and ids3.get(0x1B7) == 0 and cap3 == 72 and ids3.get(0x1C8) == 0,
       (cnt3, cap3))
 
 
@@ -714,15 +714,18 @@ def wbuf(cap):
 
 
 def render(stretch, mode=0, rate=1.0, blocks=120, n=128, seglen=24000.0, unit=24000.0, start=4000, slot=1, jumps=None,
-           changes=None, calls=None):
+           changes=None, calls=None, slice_str=None, slice_speed=0.5):
     set_param(0x1C6, stretch)
     set_param(0x1C7, mode)
+    set_param(0x1B7, slice_str or 0)
+    e.wf(0x2406F840 + ((1 * 4 + 2) * 4 + slot) * 4, [slice_speed])
     e.w32(0x2406C000 + ((1 * 4 + 2) * 4 + slot) * 40, 0)      # this slot's grain state: fresh (time stands still here)
     p_ = engine_pad()
     e.w32(p_ + 0x24, wsrc)
     e.wf(p_ + 0x1FC, [seglen])
     e.wf(p_ + 0x204, [unit])
     e.mu.mem_write(p_ + 0x1F5, b"\x01")
+    e.mu.mem_write(p_ + 0x254, b"\x01\x00\x01" if slice_str is not None else b"\x00\x00\x00")   # sliced, Sync On
     frac_p = p_ + 0x30 + 0x70 * slot + 0x1C
     e.wf(frac_p, [0.0])
     src_b, out_b = wbuf(600), wbuf(600)
@@ -775,6 +778,17 @@ check("Smooth, pitch rate 2 (an octave up): 2 kHz, tempo still from the segments
 o5, adv5, _ = render(100, mode=1)
 check("Stretch +100 % in Jump mode: stock read (pitch and advance 1:1 within the segment)",
       abs(adv5 - 120 * 128) <= 2 and abs(freq(o5[256:]) - 1000) < 30)
+
+if "slicer_stretch" in SYM:
+    o6, adv6, _ = render(0, slice_str=1, slice_speed=0.5)
+    check("Slicer Slice Str Stretch, speed 0.5 (half tempo): file advances 0.5 frame per frame, pitch unchanged (1 kHz)",
+          abs(adv6 - 0.5 * 120 * 128) <= 2 and abs(freq(o6[1024:]) - 1000) < 30, (adv6, freq(o6[1024:])))
+    o7, adv7, _ = render(0, slice_str=2, slice_speed=0.5)
+    check("Slicer Slice Str Tape, speed 0.5: half speed, an octave down (500 Hz)",
+          abs(adv7 - 0.5 * 120 * 128) <= 2 and abs(freq(o7[256:]) - 500) < 20, (adv7, freq(o7[256:])))
+    o8, adv8, _ = render(0, slice_str=0)
+    check("Slicer Slice Str Cut: stock read", abs(adv8 - 120 * 128) <= 2 and abs(freq(o8[256:]) - 1000) < 30)
+    set_param(0x1B7, 0)
 
 # --- audio load meter: DWT counter driven by the stubs (1000 + 3000 busy, 10000 per block -> 40 %)
 cyc = [0]

@@ -23,19 +23,30 @@ def opt(a, name, default):
 def main(a):
     sd = os.path.abspath(a[0])
     quant, playthru, poly = opt(a, "--quant", 13), opt(a, "--playthru", 1), opt(a, "--poly", 0)
-    spoly = opt(a, "--samplepoly", -1)          # polymode (0x82, the Sample pads' Poly Mode) as saved, -1: absent
+    spoly = opt(a, "--samplepoly", -1)
+    extra = a[a.index("--extra") + 1] if "--extra" in a else ""      # more pad params, e.g. 'slicersync="1000"'          # polymode (0x82, the Sample pads' Poly Mode) as saved, -1: absent
     pre = os.path.join(TREE, "Presets", "Slicer")
     shutil.rmtree(TREE, ignore_errors=True)
     os.makedirs(pre)
     subprocess.run([PY, "-I", os.path.join(SIM, "testsignals.py"), pre], check=True, stdout=subprocess.DEVNULL)
-    os.replace(os.path.join(pre, "drums.wav"), os.path.join(pre, "Break.wav"))
-    os.remove(os.path.join(pre, "chord.wav"))
-    slices = "".join(f'<slice pos="{k * FRAMES // 16}"/>' for k in range(16))
+    tone = "--chord" in a                       # the 4 s chord instead of the break (pitch checks)
+    os.replace(os.path.join(pre, "chord.wav" if tone else "drums.wav"), os.path.join(pre, "Break.wav"))
+    os.remove(os.path.join(pre, "drums.wav" if tone else "chord.wav"))
+    if "--sine" in a:                            # a 4 s 1 kHz sine (pitch checks by zero crossings)
+        import math, struct, wave
+        with wave.open(os.path.join(pre, "Break.wav"), "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(48000)
+            w.writeframes(b"".join(struct.pack("<h", int(16000 * math.sin(2 * math.pi * 1000 * k / 48000)))
+                                   for k in range(4 * 48000)))
+    frames = 4 * 48000 if ("--chord" in a or "--sine" in a) else FRAMES
+    slices = "".join(f'<slice pos="{k * frames // 16}"/>' for k in range(16))
     xml = ['<?xml version="1.0" encoding="UTF-8"?>', "<document>", '    <session version="2">',
            '        <cell row="0" column="0" layer="0" filename=".\\Break.wav" type="sample">',
            f'            <params cellmode="2" samtrigtype="0" polymodeslice="{poly}" playthru="{playthru}" '
            f'slicerquantsize="{quant}" midimode="1" rootnote="48"'
-           + (f' polymode="{spoly}"' if spoly >= 0 else "") + '/>',
+           + (f' polymode="{spoly}"' if spoly >= 0 else "") + (" " + extra if extra else "") + '/>',
            f"            <slices>{slices}</slices>", "        </cell>", "    </session>", "</document>", ""]
     open(os.path.join(pre, "preset.xml"), "w").write("\n".join(xml))
     if os.path.exists(sd):
