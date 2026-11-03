@@ -4,6 +4,13 @@
 
 Builds for the **bitbox MK2** on top of the stock firmware **2.3.4**, named `2.3.4-s<build>`.
 
+### 2.3.4-sF (2026-11-03)
+
+- **Slicer Sync Grid** (forum wish "Slicer mode with the sync features of Clip mode"): a new row after Sync in the
+  Slicer's Pos list: Free (stock) or 1 bar, 1/2, 1/4, 1/8, 1/16, 1/32. With Sync On, each slice's duration (stock: the
+  slice length scaled by the tempo ratio) is rounded to a whole number of grid steps at the current tempo, at least
+  one, so slices played back to back (Slice Seq) stay on the grid instead of drifting.
+
 ### 2.3.4-sE (2026-11-03)
 
 - **FX3**: a third send effect, a reverb with every reverb type and both pages (portkit's FX3, MK2 placement). On the

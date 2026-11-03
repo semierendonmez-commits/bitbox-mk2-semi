@@ -9,7 +9,7 @@ address translation; the UI is placed anew for the MK2's screens and its two key
 > Unofficial. Not affiliated with or supported by 1010music. Running modified firmware is at your own risk and may
 > affect your warranty. Keep your stock `BITBOXMK2.bin` and flash it back before sending a unit in for service.
 
-## Status: build 2.3.4-sE
+## Status: build 2.3.4-sF
 
 **emulation** = verified in the Unicorn tests and the Renode simulation of the MK2, **not yet on a unit**.
 Nothing here is hardware-tested yet.
@@ -32,7 +32,8 @@ Nothing here is hardware-tested yet.
 | **Compressor bus**: Off / Out1/2 / FX1/2 / Both | Tools → Main "Compressor:" | emulation |
 | **FX1 / FX2 Send** as numeric % rows | pad → Pos list (Multisample: Conf) | emulation |
 | **FX3** third send (reverb, all types, two pages): touch the selected FX2 cell again -> **FX 3**; **FX3 Send** in the Pos list | pad grid, FX2 column; INFO | emulation (Renode audio + Unicorn) |
-| Splash / Menu version **semi mod 2.3.4-sE** | boot, Menu lower right | emulation |
+| **Slicer Sync Grid**: Free / 1 bar .. 1/32; with Sync On every slice lasts a whole number of grid steps | Slicer pad → Pos list, after Sync | emulation (Unicorn; Renode UI) |
+| Splash / Menu version **semi mod 2.3.4-sF** | boot, Menu lower right | emulation |
 
 Not ported yet: the recording sends / monitor (recmon.c), pads 9–16 (not needed: the MK2 has 16 pads).
 
