@@ -15,7 +15,7 @@ address translation; the UI is placed anew for the MK2's screens and its two key
 
 ## Status: build 2.3.4-sN
 
-**sL booted on a unit** (first hardware test, 2026-11-03; sA..sK did not: see CHANGELOG); sM / sN have the fixes from that test and new features (not yet tried on a unit). The features themselves are
+**sN runs on a unit** (hardware test, 2026-11-03). The features themselves are
 **emulation** = verified in the Unicorn tests and the Renode simulation of the MK2; hardware checks per feature follow.
 
 | Feature | Where on the MK2 | Status |
@@ -31,7 +31,7 @@ address translation; the UI is placed anew for the MK2's screens and its two key
 | **Master compressor** settings: Comp Type Stock / SSL (SSL: ratio 2/4/10, attack 0.1–30 ms, release 0.1–1.2 s / Auto), Threshold, Ratio, Attack, Release, Gain, **Mix** (parallel) | Tools → **Comp** tab and **More** → Comp 2 (Compressor list stays on Main) | emulation |
 | **Master distortion** Soft / Hard / Fold / Tube, 2x oversampled: Drive, Tone, Mix, Level (Dist Lvl on Cmp2) | Tools → **Dist** tab | emulation |
 | **FX Out**: FX returns to Out1/2 (stock), Dly FX1/2, Rvb FX1/2, FX1/2, Dly1 Rvb2 | Tools → Rec (4th slot) | emulation (Renode audio + Unicorn) |
-| **Delay types** Digital / Tape / BBD (sM: Tape driven with wow / flutter, BBD dark with a delay-time clock); page 2 (Type "Tape >"): Mod Rate, Mod Depth, Flutter, Drive, Tone, **Level**, Mod Phase | FX1 cell → INFO | emulation |
+| **Delay types** Digital / Tape (driven, wow / flutter) / BBD (dark, delay-time clock) / Codec; page 2 (Type "Tape >"): Mod Rate, Mod Depth, Flutter, Drive, Tone, **Level**, Mod Phase | FX1 cell → INFO | emulation |
 | **Reverb page 2** (Type "Hall >"): Bass Mult, Crossover, Mod Rate, Mod Depth, Width, Hi Cut, Lo Cut | FX2 cell → INFO | emulation |
 | **Compressor bus**: Off / Out1/2 / FX1/2 / Both | Tools → Main "Compressor:" | emulation |
 | **FX1 / FX2 Send** as numeric % rows | pad → Pos list (Multisample: Conf) | emulation |
