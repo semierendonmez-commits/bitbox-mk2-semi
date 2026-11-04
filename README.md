@@ -13,9 +13,9 @@ address translation; the UI is placed anew for the MK2's screens and its two key
 > Unofficial. Not affiliated with or supported by 1010music. Running modified firmware is at your own risk and may
 > affect your warranty. Keep your stock `BITBOXMK2.bin` and flash it back before sending a unit in for service.
 
-## Status: build 2.3.4-sO
+## Status: build 2.3.4-sP
 
-**sN runs on a unit** (hardware test, 2026-11-03). The features themselves are
+**sN and sO run on a unit** (hardware tests, 2026-11-03 / 04). The features themselves are
 **emulation** = verified in the Unicorn tests and the Renode simulation of the MK2; hardware checks per feature follow.
 
 | Feature | Where on the MK2 | Status |
@@ -39,27 +39,34 @@ address translation; the UI is placed anew for the MK2's screens and its two key
 | **FX3** third send (reverb, all types, two pages): touch the selected FX2 cell again -> **FX 3**; **FX3 Send** in the Pos list | pad grid, FX2 column; INFO | emulation (Renode audio + Unicorn) |
 | **Slicer Sync Grid**: Free / 1 bar .. 1/32; with Sync On every slice lasts a whole number of grid steps | Slicer pad → Pos list, after Sync | emulation (Unicorn; Renode UI) |
 | **Slice Str**: Cut (stock) / Stretch (time stretch, pitch kept) / Tape (varispeed); slices fill their synced duration | Slicer pad → Pos list, after Sync Grid | emulation (Renode audio + Unicorn) |
-| **Screen saver**: sweeping scope of Out1/2 + meters (Scope / Meters / Dark), 1–30 min or Off; wakes on touch (swallowed), keys, MIDI | Tools → More → Page: Saver | emulation (Renode screenshots + Unicorn) |
-| **Tools → More** (was Cmp2): Page list Comp 2 / Dist 2 / Saver / CV In / Quantize / Gen … | Tools | emulation |
+| **Screen saver**: sweeping scope of Out1/2 + meters (Scope / Meters / Dark), 1–30 min or Off; wakes on touch (swallowed), keys (swallowed), MIDI notes (**MIDI Wake** On / Off) | Tools → More → Page: Saver | emulation (Renode screenshots + Unicorn) |
+| **Tools → More** (was Cmp2): Page list Comp 2 / Dist 2 / Saver / Theme / CV In / Quantize / Gen 1–4 | Tools | emulation |
 | **MOD sources KEY** (keyboard tracking) **and ENV** (the pad's ADSR as a source, per pad) | pad → MOD page → Source | emulation (Unicorn: real route code) |
 | **Double tap a dial → default value** (modulation untouched; slow taps do nothing) | every dial page (pad pages, FX cells) | emulation (Renode: Pitch, Res) |
 | **Vertical waveform zoom**: spread / pinch two fingers vertically on the sample waveform (x1..x32, display only) | pad → INFO (waveform) | emulation (Renode, two-finger touch model) |
 | **CV In scale / offset** (0..400 %, −100..+100 %; e.g. 0–5 V over the full range: 200 %, −100 %) | Tools → More → Page: CV In | emulation (Unicorn on the real engine handler, Renode page) |
 | **Quantize**: the pitch of pads played from a CV input snaps to a scale (11 scales, root C..B) | Tools → More → Page: Quantize | emulation (Unicorn) |
-| **GEN generative sequencer**: 4 lanes play pads on the MK2 clock; Euclid, Breakcut (rearranges the sample / slices: Cut), Call+Resp 3+1 (melodies: Scale, Range), Evolve, Drummap, Random; Epoch arc; Pad 1 = bottom left, Sel = the selected pad | Tools → More → Page: Gen, Gen 2, Gen 3, L1–L4 Gen / Shape / Cond | emulation (Unicorn: every algorithm and condition; Renode: pads play from GEN, Breakcut segments) |
-| **Step conditions** per lane: 1:2 … 4:4, Fill / !Fill, First / !First, Prob % | Tools → More → Ln Cond | emulation (Unicorn) |
-| **GEN sN**: Resp Pad (call and response on two pads), Breakcut procedures (BBCut: Classic, ChooseCut, Jungle, WarpCut, SQPusher, CageCut, Timeline, Permute, ThrashCut) with Rolls / Recut, Acid, Turing and Learn lanes, Turn, Drummap X / Y | Tools → More → Gen 4 / 5 / 6, Ln Resp | emulation (Unicorn; Renode audio) |
+| **GEN generative sequencer — every pad its own generator** (sP): Gen (Off, Euclid, Breakcut, Call+Resp, Evolve, Drummap, Random, Acid, Turing, Learn), Steps, Hits, Rotate, Rate, **Var** (the algorithm's amount), Prob %, Vel; Cond, Proc, Resp Pad; saved with the preset; plays on the MK2 clock (internal or MIDI) | pad → INFO → INFO → **Gen** tab (Granular pads: end of Conf) | emulation (Unicorn: every algorithm, Var, condition; Renode: Gen page, pads play) |
+| GEN globals: Run, Fill, Seed / Epoch, Turn, Learn / Scale, Range, Cut / Rolls, Recut, Mutate | Tools → More → Gen 1–4 | emulation |
 | **Delay type Codec** (ADPCM generation loss, frame loss), **Fidelity Phone / ADPCM / u-Law** | FX1 → INFO; pad Conf list | emulation (Unicorn) |
 | **MOD sources CHAOS, RAND, NET** | pad → MOD page → Source | emulation (Unicorn) |
 | **Saver views** Barcode / Matrix / Rain / Pulse; **colour themes** (10) | Tools → More → Saver | emulation (Renode screenshots) |
-| Status bar live meters (GEN lanes, ENV / CHAOS / RAND / NET); HOME + INFO = screen saver | every page | emulation (Renode) |
-| Splash / Menu version **semi mod 2.3.4-sO** | boot, Menu lower right | emulation |
+| Status bar live meters: the selected pad's GEN cycle (steps, hits, playhead), a dot per running generator (white on a hit), the selected pad's ENV / CHAOS / RAND / NET once routed | every page, top right | emulation (Renode) |
+| **HOME + INFO** = screen saver now (the two keys do nothing else; the screen stays the saver's) | any page | emulation (Renode + Unicorn) |
+| Splash / Menu version **semi mod 2.3.4-sP** | boot, Menu lower right | emulation |
 
 Not ported yet: the recording sends / monitor (recmon.c), pads 9–16 (not needed: the MK2 has 16 pads).
 
 **Two-page FX cells:** the FX cell page shows eight controls. Delay and reverb carry their second page in the Type
 list: "Tape" shows the delay's stock controls with Type in the last slot, "Tape >" the new ones (Type in the same
 place). Turn Type one step to flip pages; the sound type stays the same.
+
+**GEN, quick start (sP):** select a pad, INFO → INFO → **Gen** tab, turn **Gen** to e.g. Euclid; Tools → More →
+Gen → **Run On**. Steps / Hits / Rotate shape the rhythm, Rate its speed, **Var** is each algorithm's own amount:
+Euclid ghost notes above 50, Breakcut how much it rearranges (Proc on the Conf list picks the BBCut procedure),
+Call+Resp how much the response adds (Resp Pad: where it plays), Evolve mutation, Drummap Y (X = Rotate; columns of
+pads = kick, snare, hat, percussion), Random velocity spread, Acid accents and slides, Turing lock (100 = a locked
+loop, 50 random), Learn how closely it follows what you played. Every pad keeps its generator in the preset.
 
 **Presets:** values are stored by parameter name (`pkdrive`, `pkshift`, ...). Stock presets load as before; the new
 controls start at their defaults. The parameter table and ids are identical on micro and MK2 (240 registrations,

@@ -5,7 +5,8 @@
  *   oscilloscope of Out1/2 with level meters; Meters: the meters only; Dark: black; and the DATASCREEN views of the
  *   pads (Ikeda / datamatics style, white on black): Barcode (a scrolling column a block, a band per pad that sounds,
  *   a full white line on a hit), Matrix (16 pads x the last 32 sixteenths), Rain (a falling byte down the pad's
- *   column for every hit), Pulse (GEN's four lanes as rings, the playhead going round)).
+ *   column for every hit), Pulse (up to four of GEN's pads as rings, the playhead going round; with none running, the
+ *   16 pads on a ring)).
  * - Display: the LTDC shows two ARGB1555 layers (320 x 240, layer 1 the backgrounds, layer 2 the text; HAL LTDC,
  *   the buffers are set up once). While the saver runs, layer 1 shows a buffer of ours (heap, 150 KB, allocated at
  *   boot) and layer 2 is switched off; on wake both are put back (registers only: the UI's own buffers are never
@@ -15,7 +16,14 @@
  * - Wake: a touch (the app dispatcher's touch commands: 3 / 4 on the grid, 0x14d on dial pages, knob, cell select; the
  *   waking touch is swallowed), the two keys (GPIOC
  *   IDR, PC2 / PC3 active low, polled per block), MIDI in (the UARTs' receive ISR, HAL RxISR pointer 0x0804e9c9 at
- *   its two set-up sites, replaced by ss_rx_isr). A MIDI byte also flashes a dot in the corner.
+ *   its two set-up sites, replaced by ss_rx_isr; MIDI clock never wakes it) unless MIDI Wake is Off (Saver page): then
+ *   MIDI notes / trigs neither wake it nor hold it off. A MIDI byte also flashes a dot in the corner.
+ * - HOME + INFO together: the saver now (also with Saver Off); the next key, touch (or MIDI, with MIDI Wake) wakes.
+ *   The keys reach the UI through ss_key (the key poll's HAL_GPIO_ReadPin, 0x080419da): a press is held back 50 ms,
+ *   so pressed together neither does its own job (no page change under the saver); while the saver runs, and for a
+ *   key that woke it until it is let go, the keys read as released. A short tap still arrives (late, held 40 ms).
+ * - While it runs, every block checks the LTDC is still ours (a page change can reconfigure the layers directly, not
+ *   through HAL_LTDC_SetAddress): the UI's layer 1 address is noted and ours put back, layer 2 kept off.
  */
 #include <stdint.h>
 
@@ -41,6 +49,7 @@ int fast_get(const void *store, unsigned param);
 #define SETTINGS  (APP + 0x7ed0u)
 #define P_SAVER   0x1b8
 #define P_SSVIEW  0x1b9
+#define P_SSWAKE  0x216                                 /* MIDI Wake: Off / On (master.c) */
 
 #define LTDC      0x50001000u
 #define L1_CR     (*(volatile uint32_t *)(LTDC + 0x84u))
@@ -84,8 +93,10 @@ _Static_assert(sizeof(struct ss) <= 0x40, "saver state fits its slot");
 #define DOT    0x8000u | (31u << 10) | (31u << 5) | 31u
 
 /* boot (UI thread, from fx3_label): the screen buffer */
+void gen_init(void);                                    /* gen.c: the Learn tables */
 void ss_init(void)
 {
+    gen_init();
     volatile struct ss *s = SS;
     if (s->magic == SSMAGIC)
         return;
@@ -137,6 +148,9 @@ static void start(void)
     uint16_t *fb = s->fb;
     if (!fb || s->on)
         return;
+    s->col = 0;
+    s->blk = 0;
+    s->flash = 0;
     s->view = (uint8_t)fw_store_get(SETTINGS, P_SSVIEW);
     if (s->view >= VIEWS)
         s->view = V_SCOPE;
@@ -150,11 +164,31 @@ static void start(void)
     }
     s->saved_cfbar = L1_CFBAR;
     s->saved_l2 = L2_CR;
+    s->on = 1;                                          /* first: a layer address set from now on keeps ours */
     L1_CFBAR = (uint32_t)fb;
     L2_CR = s->saved_l2 & ~1u;
     SRCR = 2;
-    s->col = 0;
-    s->on = 1;
+}
+
+/* while it runs: the screen still ours (the UI may have set the layers up again on a page change) */
+static void keep(void)
+{
+    volatile struct ss *s = SS;
+    int moved = 0;
+    uint32_t a = L1_CFBAR;
+    if (a != (uint32_t)s->fb) {
+        s->saved_cfbar = a;
+        L1_CFBAR = (uint32_t)s->fb;
+        moved = 1;
+    }
+    uint32_t c = L2_CR;
+    if (c & 1u) {
+        s->saved_l2 = c;
+        L2_CR = c & ~1u;
+        moved = 1;
+    }
+    if (moved)
+        SRCR = 2;
 }
 
 static int clampy(float v)
@@ -194,6 +228,8 @@ struct ds {
     uint8_t rbits[16][2];
     int32_t step;
     uint32_t lcg;
+    int32_t lastpos;           /* Matrix: the song position last block, blocks it has not moved */
+    uint32_t still;
 };
 #define DS ((struct ds *)0x2001c380u)                   /* [mk2] patch RAM, 0x100 (tests/test_ram.py) */
 _Static_assert(sizeof(struct ds) <= 0x100, "data view state fits its slot");
@@ -213,6 +249,8 @@ static void ds_start(void)
     }
     d->step = -1;
     d->lcg = 12345u;
+    d->lastpos = 0;
+    d->still = 1000;
     if (!eng)
         return;
     uint8_t *p = *(uint8_t *const *)(eng + 0xfaf8 + 8);
@@ -266,8 +304,12 @@ static void ds_draw(uint16_t *fb, uint32_t blk)
         break;
     }
     case V_MATRIX: {                                    /* 32 columns of 10 px (sixteenths), 16 rows of 15 px */
-        uint8_t *eng = ENGINE;
-        int32_t st = eng ? *(volatile int32_t *)(eng + 0x30) / 240 : (int32_t)(blk / 8);
+        uint8_t *eng = ENGINE;                          /* the song's sixteenths; stopped: free running, 8 a second */
+        int32_t pos = eng ? *(volatile int32_t *)(eng + 0x30) : 0;
+        d->still = pos != d->lastpos ? 0 : d->still < 100000u ? d->still + 1 : d->still;
+        d->lastpos = pos;
+        int32_t st = d->still < 200 ? pos / 240 : (int32_t)(blk / 47);
+        st = st < 0 ? 0 : st;
         int c = (int)(st % 32);
         if (st != d->step) {
             d->step = st;
@@ -309,17 +351,18 @@ static void ds_draw(uint16_t *fb, uint32_t blk)
         }
         break;
     }
-    case V_PULSE: {                                     /* GEN's lanes as rings around the centre */
+    case V_PULSE: {                                     /* GEN's pads as rings around the centre (up to 4) */
         static const int8_t sn[32] = {0, 20, 39, 56, 71, 83, 92, 98, 100, 98, 92, 83, 71, 56, 39, 20,
                                       0, -20, -39, -56, -71, -83, -92, -98, -100, -98, -92, -83, -71, -56, -39, -20};
         if ((blk & 7u) != 0)
             break;
-        for (int l = 0; l < 4; l++) {
+        int rings = 0;
+        for (int l = 0; l < 16 && rings < 4; l++) {
             int n, pos;
             uint32_t m;
-            int rad = 34 + l * 24;
             if (!gen_lane_view(l, &n, &pos, &m))
                 continue;
+            int rad = 34 + rings++ * 24;
             for (int i = 0; i < n; i++) {
                 int a = i * 32 / n, ca = (a + 24) % 32;   /* step 0 at the top, clockwise */
                 int x = W / 2 + sn[a] * rad / 100, y = H / 2 - sn[ca] * rad / 100;
@@ -330,6 +373,12 @@ static void ds_draw(uint16_t *fb, uint32_t blk)
                     rect(fb, x - 1, y - 1, x + 2, y + 2, m >> i & 1 ? GREY : DIM);
             }
         }
+        if (!rings)                                     /* no generator running: the 16 pads on a ring */
+            for (int k = 0; k < 16; k++) {
+                int a = k * 2, ca = (a + 24) % 32, x = W / 2 + sn[a] * 90 / 100, y = H / 2 - sn[ca] * 90 / 100;
+                int lit = hits >> k & 1 ? 2 : on >> k & 1;
+                rect(fb, x - 5, y - 5, x + 6, y + 6, lit == 2 ? WHITE : lit ? GREY : DIM);
+            }
         for (int k = 0; k < 16; k++)                    /* the pads that sound: the centre square */
             rect(fb, W / 2 - 8 + (k % 4) * 4, H / 2 + 4 - (k / 4) * 4, W / 2 - 5 + (k % 4) * 4,
                  H / 2 + 7 - (k / 4) * 4, on >> k & 1 ? WHITE : DIM);
@@ -344,27 +393,36 @@ static void ds_draw(uint16_t *fb, uint32_t blk)
 void ss_audio(void *bus0)
 {
     volatile struct ss *s = SS;
+    (*(volatile uint32_t *)(0x2001c100u + 0x18u))++;   /* struct keyst's clock (below) */
     if (s->magic != SSMAGIC || !s->fb)
         return;
     int t = fw_store_get(SETTINGS, P_SAVER);
+    int midi = fw_store_get(SETTINGS, P_SSWAKE) != 0;   /* MIDI Wake */
     uint32_t keys = GPIOC_IDR & 0xcu;
+    int rx = s->rx != s->rx_seen;
     if (keys == 0 && !s->on && !s->keys) {              /* HOME + INFO together: the saver now (also with Saver Off) */
         s->keys = 1;
+        s->rx_seen = s->rx;
         start();
     }
     if (s->keys && !s->on)
         s->keys = 0;                                    /* woken by a touch */
-    if (s->keys == 1 && keys == 0xcu)
-        s->keys = 2;                                    /* both released: the next key / MIDI wakes */
-    if (s->keys == 2 && (keys != 0xcu || s->rx != s->rx_seen)) {
+    if (s->keys == 1) {
+        s->rx_seen = s->rx;                             /* MIDI while the keys are held: not a wake */
+        rx = 0;
+        if (keys == 0xcu)
+            s->keys = 2;                                /* both released: the next key / touch / MIDI wakes */
+    }
+    if (s->keys == 2 && (keys != 0xcu || (rx && midi))) {
         s->rx_seen = s->rx;
         s->keys = 0;
         wake();
         return;
     }
     if (!s->keys) {
-        if (keys != 0xcu || s->rx != s->rx_seen || t <= 0 || t >= SAVERS) {
-            s->rx_seen = s->rx;
+        if (keys != 0xcu || (rx && midi) || t <= 0 || t >= SAVERS) {
+            if (rx && midi)
+                s->rx_seen = s->rx;
             if (s->on && keys != 0xcu)
                 s->swallow = 0;
             wake();
@@ -372,11 +430,14 @@ void ss_audio(void *bus0)
                 return;
         }
         if (!s->on) {
+            if (rx)
+                s->rx_seen = s->rx;
             if (++s->idle >= saver_min[t] * BLOCKS_PER_MIN)
                 start();
             return;
         }
     }
+    keep();
     /* the monitor */
     float lo = 0.0f, hi = 0.0f, lo2 = 0.0f, hi2 = 0.0f, pl = 0.0f, pr = 0.0f;
     if (!*((const uint8_t *)bus0 + 0x10)) {
@@ -431,6 +492,73 @@ void ss_audio(void *bus0)
     }
 }
 
+/* --- the keys as the UI sees them (hook at the key poll's HAL_GPIO_ReadPin, 0x080419da: port, pin -> 0 pressed) -- */
+typedef int (*readpin_fn)(void *port, unsigned pin);
+#define fw_read_pin ((readpin_fn)FN(0x08052a78))      /* [mk2] */
+struct keyst {
+    uint32_t magic;
+    uint32_t down[2];          /* block count when the key went down (0 = up) */
+    uint32_t until[2];         /* a short tap: reported pressed until then */
+    uint8_t shown[2], hide, pad;
+    uint32_t clock;            /* audio blocks (ss_audio): the keys' clock */
+};
+#define KS ((volatile struct keyst *)0x2001c100u)      /* [mk2] patch RAM, 0x20 (tests/test_ram.py) */
+_Static_assert(sizeof(struct keyst) <= 0x20 && __builtin_offsetof(struct keyst, clock) == 0x18, "key state fits its slot");
+#define KMAGIC 0x4b455953u
+#define KEY_WAIT 19u                                   /* blocks (2.67 ms): ~50 ms */
+#define KEY_TAP  15u
+
+int ss_key(void *port, unsigned pin)
+{
+    int r = fw_read_pin(port, pin);
+    volatile struct keyst *k = KS;
+    volatile struct ss *s = SS;
+    if ((uint32_t)port != 0x58020800u || (pin != 4u && pin != 8u) || s->magic != SSMAGIC || !s->fb)
+        return r;
+    if (k->magic != KMAGIC) {
+        k->down[0] = k->down[1] = k->until[0] = k->until[1] = 0;
+        k->shown[0] = k->shown[1] = 0;
+        k->hide = 0;
+        k->magic = KMAGIC;
+    }
+    int i = pin == 8u, pressed = r == 0;
+    uint32_t now = k->clock | 1u;
+    if (s->on || s->keys) {                            /* the saver's keys: never the UI's */
+        k->hide = 1;
+        k->down[i] = 0;
+        k->shown[i] = 0;
+        k->until[i] = 0;
+        return 1;
+    }
+    if (k->hide) {                                     /* a key that woke it: till both are let go */
+        if ((GPIOC_IDR & 0xcu) == 0xcu)
+            k->hide = 0;
+        return 1;
+    }
+    if (pressed) {
+        if (k->shown[i])
+            return 0;
+        if (!k->down[i])
+            k->down[i] = now;
+        if (now - k->down[i] < KEY_WAIT)
+            return 1;                                  /* held back: the other key may follow */
+        k->shown[i] = 1;
+        return 0;
+    }
+    if (k->down[i] && !k->shown[i]) {                  /* a tap shorter than the wait: deliver it now */
+        k->down[i] = 0;
+        k->until[i] = now + KEY_TAP;
+    }
+    if (k->until[i]) {
+        if ((int32_t)(now - k->until[i]) < 0)
+            return 0;
+        k->until[i] = 0;
+    }
+    k->down[i] = 0;
+    k->shown[i] = 0;
+    return r;
+}
+
 /* UART receive ISR (both MIDI ports): the stock handler, then count the byte unless it is a real-time byte */
 void ss_rx_isr(void *huart)
 {
@@ -446,7 +574,8 @@ typedef int (*setaddr_fn)(void *h, uint32_t addr, unsigned layer);
 #define fw_set_address ((setaddr_fn)FN(0x0804c03a))    /* [mk2] */
 
 /* --- live meters in the status bar, drawn into every new text-layer frame (layer 2, ARGB1555, transparent around):
-   GEN's four lanes (x 204..283: the cycle's steps, its hits, the playhead) and the selected pad's modulation sources
+   GEN (x 204..283): the selected pad's cycle on top (its steps, hits, the playhead), below a dot per pad whose
+   generator runs (white on a hit; the selected pad underlined), and the selected pad's modulation sources
    ENV / CHAOS / RAND / NET as bipolar bars (x 290..317). The stock bar leaves x 200..319 empty. */
 int modsrc_values(unsigned row, unsigned col, float out[4]);   /* modsrc.c */
 #define OV_X 204
@@ -467,21 +596,28 @@ static void overlay(uint16_t *fb)
         0x8000u | (8u << 10) | (31u << 5) | 8u};           /* NET green */
     const uint16_t dim = 0x8000u | (6u << 10) | (6u << 5) | 7u, mid = 0x8000u | (14u << 10) | (14u << 5) | 15u;
     ov_rect(fb, OV_X - 2, 1, W, 18, 0);
-    for (int l = 0; l < 4; l++) {
-        int n, pos;
+    unsigned sel = *(volatile uint8_t *)((volatile uint8_t *)0x24015170u + 0x14);   /* the selected pad: row << 4 | col */
+    int pad = ((sel >> 4) & 0xf) < 4 && (sel & 0xf) < 4 ? (int)((sel >> 4) & 0xf) * 4 + (int)(sel & 0xf) : -1;
+    const uint16_t sel_c = 0x8000u | (2u << 10) | (26u << 5) | 30u;
+    for (int l = 0; l < 16; l++) {                      /* the 16 pads' generators: a dot each, lit on a hit */
+        int n, pos, x = OV_X + l * 5;
         uint32_t m;
+        if (l == pad)
+            ov_rect(fb, x, 16, x + 4, 17, sel_c);
         if (!gen_lane_view(l, &n, &pos, &m))
             continue;
-        int cw = OV_W / n, y = 2 + l * 4;
+        ov_rect(fb, x, 11, x + 4, 15, m >> pos & 1 ? 0xffffu : mid);
+        if (l != pad)
+            continue;
+        int cw = OV_W / n;                              /* the selected pad's cycle: its steps, hits, the playhead */
         cw = cw < 1 ? 1 : cw;
         for (int i = 0; i < n && i * cw < OV_W; i++) {
             uint16_t c = i == pos ? 0xffffu : (m >> i & 1) ? mid : dim;
-            ov_rect(fb, OV_X + i * cw, y, OV_X + i * cw + (cw > 2 ? cw - 1 : cw), y + 3, c);
+            ov_rect(fb, OV_X + i * cw, 2, OV_X + i * cw + (cw > 2 ? cw - 1 : cw), 9, c);
         }
     }
-    unsigned cell = *(volatile uint16_t *)((volatile uint8_t *)0x24015170u + 0x28);
     float v[4];
-    int mask = ((cell >> 8) & 0x1f) == 0 ? modsrc_values((cell >> 4) & 0xf, cell & 0xf, v) : 0;
+    int mask = pad >= 0 ? modsrc_values((unsigned)pad >> 2, (unsigned)pad & 3, v) : 0;
     for (int k = 0; k < 4; k++) {
         int x = 290 + k * 7;
         ov_rect(fb, x, 9, x + 5, 10, dim);              /* the zero line */

@@ -351,6 +351,7 @@ int fx_page(void *app, const void *msg, uint8_t *list);   /* fx.c */
 #define APP_FX     0x2200u                             /* app + 0x2200 + row x 0x18: FX cell records */
 
 int master_page(void *app, const void *msg, uint8_t *list);
+void gen_page(const uint8_t *rec, const uint8_t *app);
 
 int clip_page(void *app, const void *msg, void *list, int arg)
 {
@@ -360,6 +361,7 @@ int clip_page(void *app, const void *msg, void *list, int arg)
     /* FX cells (layer 3): reverb / delay type pages (fx.c) */
     if (fx_page(app, msg, list))
         return r;
+    gen_page(fw_record(app, msg), app);                 /* gen.c: the pad's tab 3 is "Gen" or "Gran" */
     if (!list_has(list, P_PLAYLEN) && !list_has(list, P_STRETCH) && !list_has(list, P_SMODE))
         return r;
     const void *rec = fw_record(app, msg);

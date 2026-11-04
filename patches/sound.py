@@ -79,9 +79,9 @@ THUNKS = [
 
 EXCLUSIVE = {PAGE_BUILDER, 0x080B66D4, 0x080952D8, 0x08095364}
 
-# Pad record capacity 64 -> 72 entries (`movs r1, #0x40` before the store allocation 0x08089356 in the record init
-# 0x08089400 and the record reset 0x08089e44), as on the micro (58 stock + 9 new entries).
-CAPACITY = [(0x08089406, "4021", "4821"), (0x08089E50, "4021", "4821")]
+# Pad record capacity 64 -> 80 entries (`movs r1, #0x40` before the store allocation 0x08089356 in the record init
+# 0x08089400 and the record reset 0x08089e44): 58 stock + 9 new entries + GEN's 11 (src/gen.c, sP).
+CAPACITY = [(0x08089406, "4021", "5021"), (0x08089E50, "4021", "5021")]
 
 # Sync's beats table (0x080c60cc, 7 entries) -> sync_beats (8) in the clip parameter handler's literal
 DATA = [(0x080B860C, 0x080C60CC, "sync_beats")]
@@ -111,7 +111,7 @@ def sends_patch(table, page):
         tail = ids[k:n]
         return (at + 2 * k, struct.pack(f"<{len(tail) + 5}H", *tail, 0, 0, 0, 0, 0),
                 struct.pack(f"<{len(tail) + 5}H", P_SGRID, P_SSTR, *tail, P_FX1, P_FX2, P_FX3))
-    return (at + 2 * n, bytes(8), struct.pack("<4H", P_FX1, P_FX2, P_FX3, 0))
+    return (at + 2 * n, bytes(6), struct.pack("<3H", P_FX1, P_FX2, P_FX3))   # (GEN's go on after them: gen.py)
 
 
 def lfo_patch(table):

@@ -4,6 +4,30 @@
 
 Builds for the **bitbox MK2** on top of the stock firmware **2.3.4**, named `2.3.4-s<build>`.
 
+### 2.3.4-sP (2026-11-04)
+
+- **Every pad has its own generator** (GEN redesigned): select a pad, INFO → INFO → the new **Gen** tab (the place
+  of Granular's Gran tab; Granular pads: at the end of their Conf list): **Gen** (Off, Euclid, Breakcut, Call+Resp,
+  Evolve, Drummap, Random, Acid, Turing, Learn), **Steps, Hits, Rotate, Rate, Var, Prob %, Vel**; on the Conf list
+  **Cond, Proc** (Breakcut's procedure) and **Resp Pad**. Saved with the preset, up to 16 generators at once. The
+  four lanes and their 21 settings pages are gone.
+- **Var**, one dial for each algorithm's own amount: Euclid ghost notes (above 50), Breakcut how much it rearranges,
+  Call+Resp how much the response adds, Evolve mutation, Drummap Y (the pad's column picks kick / snare / hat /
+  percussion), Random velocity spread, Acid accents + slides, Turing lock, Learn how closely it follows.
+- **Tools → More** shorter: Saver, **Theme** (own page), Gen (Run, Fill, Seed), Gen 2 (Epoch, Turn, Learn), Gen 3
+  (Scale, Range, Cut), Gen 4 (Rolls, Recut, Mutate).
+- **Status bar**: the selected pad's cycle (steps, hits, playhead), a dot for every pad whose generator runs (white
+  on a hit, the selected pad underlined), and the selected pad's ENV / CHAOS / RAND / NET bars. **Fix:** the bars
+  read the effect cell instead of the selected pad, so they never showed (sO).
+- **Fix: HOME + INFO saver.** The two keys also did their own jobs (a page change under the saver, which could
+  reconfigure the display layers: some views showed wrong). Now a key press reaches the UI ~50 ms late, so pressed
+  together neither acts; the saver's keys and the key that wakes it do nothing else; while it runs, every audio
+  block checks the display is still the saver's.
+- **MIDI Wake** (Saver page): Off = MIDI notes / trigs neither wake the saver nor hold it off (clock never did).
+- Saver views: **Matrix** runs free (8 columns a second) while the transport is stopped; **Pulse** shows up to four
+  running pads, or all 16 pads on a ring when no generator runs.
+- Old lane settings (semig1algo ..) are ignored; set the generators on the pads again.
+
 ### 2.3.4-sO (2026-11-04)
 
 - **Breakcut cuts the break musically** (as BBCut): the sample is taken as a loop of whole bars (its length at the

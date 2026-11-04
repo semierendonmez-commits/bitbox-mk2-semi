@@ -96,11 +96,11 @@ static const char *const saver_names[] = {"Off", "1 min", "2 min", "5 min", "10 
 static const char *const ssview_names[] = {"Scope", "Meters", "Dark", "Barcode", "Matrix", "Rain", "Pulse"};
 extern const char *const theme_names[];                     /* theme.c */
 #define P_THEME    0x20a
-static const char *const mpage_names[] = {"Comp 2", "Dist 2", "Saver", "CV In", "Quantize", "Gen", "Gen 2", "Gen 3", "Gen 4", "Gen 5", "Gen 6",
-                                          "L1 Gen", "L1 Shape", "L1 Cond", "L2 Gen", "L2 Shape", "L2 Cond",
-                                          "L3 Gen", "L3 Shape", "L3 Cond", "L4 Gen", "L4 Shape", "L4 Cond",
-                                          "L1 Resp", "L2 Resp", "L3 Resp", "L4 Resp"};
-#define MPAGES 27
+#define P_SSWAKE   0x216                                    /* ss.c: MIDI notes / trigs wake the saver */
+static const char *const mpage_names[] = {"Comp 2", "Dist 2", "Saver", "Theme", "CV In", "Quantize", "Gen", "Gen 2",
+                                          "Gen 3", "Gen 4"};
+#define MPAGES 10
+static const char *const onoff_names[] = {"Off", "On"};
 static const char *const qscale_names[] = {"Off", "Major", "Minor", "Dorian", "Phrygian", "Lydian", "Mixolyd",
                                            "Harm Min", "Pent Maj", "Pent Min", "Blues", "Whole"};
 static const char *const qroot_names[] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
@@ -126,6 +126,7 @@ static const struct pdef pdefs[] = {
     {P_SAVER, 0, "Saver:", 0, 6, 3, "semisaver", saver_names},      /* default 5 min */
     {P_SSVIEW, 0, "View:", 0, 7, 0, "semisaverview", ssview_names},
     {P_THEME, 0, "Theme:", 0, 10, 0, "semitheme", theme_names},
+    {P_SSWAKE, 0, "MIDI Wake:", 0, 2, 1, "semisaverwake", onoff_names},
     {P_MPAGE, 0, "Page:", 0, MPAGES, 0, "semimorepage", mpage_names},
     {P_CVSCALE, 1, "CV Scale %:", 0, 400, 100, "semicvscale", 0},
     {P_CVOFFS, 1, "CV Offset %:", -100, 100, 0, "semicvoffset", 0},
@@ -195,20 +196,15 @@ static void swap_id(uint8_t *out, unsigned from, unsigned to)
 static const uint16_t more_pages[MPAGES][MSLOTS] = {
     {0x1a3, 0x1a5, 0x1a6},                                  /* Comp 2: Attack, Release, Gain */
     {0x1ac},                                                /* Dist 2: Dist Lvl */
-    {P_SAVER, P_SSVIEW, P_THEME},                           /* Saver: time, view, colour theme (theme.c) */
+    {P_SAVER, P_SSVIEW, P_SSWAKE},                          /* Saver: time, view, MIDI wakes it */
+    {P_THEME},                                              /* Theme: the colour theme (theme.c) */
     {P_CVSCALE, P_CVOFFS},                                  /* CV In (cvq.c): scale / offset */
     {P_QSCALE, P_QROOT},                                    /* Quantize (cvq.c): the CV inputs' pitch */
-    {0x1d1, 0x1d2, 0x1d3},                                  /* Gen (gen.c): Run, Fill, Epoch */
-    {0x1d4, 0x1d5},                                         /* Gen 2: Seed, Mutate */
-    {0x1fa, 0x1fb, 0x1fc},                                  /* Gen 3: Cut, Scale, Range */
-    {0x1fd, 0x1fe, 0x1ff},                                  /* Gen 4: Proc, Rolls, Recut (Breakcut) */
-    {0x200, 0x201, 0x202},                                  /* Gen 5: Accent, Slide (Acid, Turing), Lock (Turing) */
-    {0x203, 0x204, 0x205},                                  /* Gen 6: Map Y (Drummap), Learn, Turn */
-#define GLANE(l) {0x1d6 + 9 * (l), 0x1d7 + 9 * (l), 0x1d8 + 9 * (l)}, {0x1d9 + 9 * (l), 0x1da + 9 * (l), 0x1db + 9 * (l)}, \
-                 {0x1dc + 9 * (l), 0x1dd + 9 * (l), 0x1de + 9 * (l)}
-    GLANE(0), GLANE(1), GLANE(2), GLANE(3),                 /* Ln Gen: Algo, Pad, Steps; Shape: Hits, Rotate, Rate;
-                                                               Cond: Cond, Prob, Vel */
-    {0x206}, {0x207}, {0x208}, {0x209},                     /* Ln Resp: Call+Resp's response pad */
+    {0x1d1, 0x1d2, 0x1d4},                                  /* Gen (gen.c): Run, Fill, Seed (the pads' own: their
+                                                               Gen page) */
+    {0x1d3, 0x205, 0x204},                                  /* Gen 2: Epoch, Turn, Learn */
+    {0x1fb, 0x1fc, 0x1fa},                                  /* Gen 3: Scale, Range (melodies), Cut (Breakcut) */
+    {0x1fe, 0x1ff, 0x1d5},                                  /* Gen 4: Rolls, Recut (Breakcut), Mutate (Acid) */
 };
 
 static void set_slot(uint8_t *out, int k, unsigned id)

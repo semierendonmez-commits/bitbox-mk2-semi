@@ -23,12 +23,14 @@ Builds (portkit's micro history up to pkZD: portkit-micro CHANGELOG.md):
   N = GEN: Resp Pad, Breakcut procedures (BBCut), Acid, Turing, Learn, Turn, Drummap Y; Codec delay, Fidelity Phone /
       ADPCM / u-Law; MOD sources CHAOS / RAND / NET; saver views Barcode / Matrix / Rain / Pulse; colour themes
   O = Breakcut follows the break's bars, Mono while cutting, slices by position; status bar meters; HOME + INFO saver
+  P = GEN per pad (a Gen tab on every pad, Var, saved with the preset; 16 generators); saver keys swallowed, layers
+      kept, MIDI Wake; status bar meters from the selected pad (app +0x14)
 """
 import os
 
 from thumb import ROOT, STOCK_END, bl, symbols
 
-BUILD = os.environ.get("SEMI_TAG", "O").encode()   # SEMI_TAG: test builds (sT1 ..)
+BUILD = os.environ.get("SEMI_TAG", "P").encode()   # SEMI_TAG: test builds (sT1 ..)
 
 
 def slot(text, size=16):

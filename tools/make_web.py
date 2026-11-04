@@ -36,8 +36,8 @@ FEATURES = [
     ["FX3 and FX Out", "Third send (touch the selected FX2 cell again); FX1 / FX2 / FX3 Send modulatable (MOD page); FX returns to Out1/2 or the FX1/2 jacks"],
     ["Master section", "Compressor Stock / SSL with Mix and bus choice, master distortion Soft / Hard / Fold / Tube"],
     ["Modulation", "MOD sources KEY, ENV, CHAOS, RAND, NET; FX sends modulatable; CV In scale / offset; CV pitch quantizer"],
-    ["GEN sequencer", "4 lanes on the MK2 clock: Euclid, Breakcut (BBCut procedures, rearranges sample / slices), Call+Resp (melodies, across pads), Evolve, Drummap X/Y, Random, Acid, Turing, Learn; step conditions; Epoch, Turn"],
-    ["UI", "Double tap a dial for its default; vertical waveform zoom; screen saver (scope, data views); 10 colour themes"],
+    ["GEN sequencer", "A generator on every pad (its own Gen tab, saved with the preset) on the MK2 clock: Euclid, Breakcut (BBCut procedures, rearranges sample / slices), Call+Resp (melodies, across pads), Evolve, Drummap, Random, Acid, Turing, Learn; Var, step conditions; Epoch, Turn"],
+    ["UI", "Double tap a dial for its default; vertical waveform zoom; screen saver (scope, data views; HOME + INFO, MIDI Wake); 10 colour themes; live meters in the status bar"],
     ["Fixes and status", "Clip / Slicer Poly Mode Mono honoured; CPU load in the status bar"],
 ]
 

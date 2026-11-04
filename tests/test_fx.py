@@ -352,6 +352,33 @@ if "ss_dispatch" in SYM:
     check("saver: a touch while it runs wakes it and is swallowed (press and release); later touches pass, idle reset",
           on_after == 0 and seen_cmd == [3] and e.r32(ss + 8) == 0, (on_after, seen_cmd, e.r32(ss + 8)))
     del e.stubs[0x0808073C]
+    # the keys (ss_key at the key poll's HAL_GPIO_ReadPin): a press held back ~50 ms, a short tap delivered late, the
+    # saver's keys (and a waking key until let go) read as released
+    check("keys: the key poll's HAL_GPIO_ReadPin (0x080419da) goes through ss_key", bl_at(0x080419DA) == SYM["ss_key"] & ~1)
+    e.mu.mem_map(0x58020000, 0x1000)                        # GPIOC
+    pin_level = [1]
+    e.stub(0x08052A78, lambda uc: uc.reg_write(UC_ARM_REG_R0, pin_level[0]))
+    KS = 0x2001C100
+    e.w32(KS, 0)
+    e.w32(ss + 4, 0x30000000)                               # a screen buffer
+    e.mu.mem_write(ss + 0x14, bytes([0, 0, 0]))             # off, no swallow, no keys
+    def key(clock, level, idr=0xC):
+        e.w32(KS + 0x18, clock)
+        pin_level[0] = level
+        e.w32(0x58020810, idr)
+        return e.call(SYM["ss_key"], 0x58020800, 4)
+    held = [key(100, 0), key(110, 0), key(120, 0), key(130, 1)]
+    tap = [key(200, 0), key(205, 1), key(215, 1), key(221, 1)]
+    other = e.call(SYM["ss_key"], 0x58020C00, 4)            # another port: as read
+    e.mu.mem_write(ss + 0x14, bytes([1]))                   # saver on
+    on_key = key(300, 0, 0x8)
+    e.mu.mem_write(ss + 0x14, bytes([0]))                   # woken: the key still down
+    woke = [key(310, 0, 0x8), key(320, 0, 0x8), key(330, 1, 0xC), key(340, 0, 0x8)]
+    check("keys: a press reaches the UI after ~50 ms (held back: the other key may follow), a 13 ms tap arrives late "
+          "and lasts 40 ms; while the saver runs and for the waking key until let go: released; then normal again",
+          held == [1, 1, 0, 1] and tap == [1, 0, 0, 1] and other == 1 and on_key == 1 and woke[:2] == [1, 1]
+          and woke[2] == 1 and woke[3] == 1, (held, tap, on_key, woke))
+    e.w32(ss + 4, 0)
 
 # --- themes (theme.c): the palette's UI colours by role, alpha kept; Stock / unknown colours unchanged
 if "theme_color" in SYM:
